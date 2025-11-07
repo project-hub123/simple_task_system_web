@@ -1,0 +1,27 @@
+<!-- file: simple_task_system_web/templates/admin.html -->
+{% extends 'base.html' %}
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+  <h2>Панель администратора</h2>
+
+  <!-- Таблица пользователей -->
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Логин</th>
+        <th>Роль</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.id }}</td>
+        <td>{{ u.username }}</td>
+        <td>{{ u.role }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

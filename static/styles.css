@@ -1,0 +1,147 @@
+/* static/styles.css */
+body {
+  background: #f0f4f8;
+  color: #333;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header {
+  background: #004080;
+  color: #fff;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header img {
+  height: 50px;
+  margin-right: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+header .user-info {
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+nav {
+  background: #e1e8f0;
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+nav a {
+  margin-right: 1rem;
+  color: #004080;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+nav a:hover,
+nav a.active {
+  text-decoration: underline;
+  color: #001f4d;
+}
+
+.container {
+  max-width: 800px;
+  margin: 2rem auto;
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-grow: 1;
+}
+
+.flash {
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+.flash.info {
+  background: #e7f3fe;
+  color: #084298;
+}
+
+.flash.success {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.flash.danger {
+  background: #f8d7da;
+  color: #842029;
+}
+
+button {
+  background: #004080;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+button:hover {
+  background: #003366;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+pre {
+  background: #f4f4f4;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+}
+
+footer {
+  background: #e1e8f0;
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.scroll-box {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #f4f4f4;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+

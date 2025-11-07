@@ -1,0 +1,7 @@
+flask==2.2.5
+flask-login==0.6.3
+flask_sqlalchemy==3.0.5
+openai==0.28.1
+pandas==1.5.3
+openpyxl==3.1.2
+pydantic==1.10.12

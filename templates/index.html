@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+  <h2>О системе</h2>
+  <p>Этот сервис позволяет преподавателям и студентам автоматически генерировать учебные задания по Python и получать моментальную проверку решений благодаря нейронным сетям OpenAI.</p>
+
+  {% if error_msg %}
+    <div class="flash danger">Ошибка: {{ error_msg }}</div>
+  {% endif %}
+
+  <!-- Основная форма -->
+  <form method="post">
+    {% if not task %}
+      <!-- Кнопка генерации задания -->
+      <button type="submit" name="action" value="generate">Сгенерировать задание</button>
+    {% endif %}
+
+    {% if task %}
+      <h3>Задание</h3>
+      <pre>{{ task }}</pre>
+
+      <!-- Скрытое поле с заданием -->
+      <input type="hidden" name="task" value="{{ task }}">
+
+      <h3>Ваш код</h3>
+      <textarea name="solution" style="height:150px; width:100%;" placeholder="Введите ваш код здесь...">{{ solution }}</textarea>
+
+      <!-- Кнопка проверки -->
+      <button type="submit" name="action" value="check">Проверить</button>
+    {% endif %}
+  </form>
+
+{% if feedback %}
+  <div class="flash info" style="margin-top: 2rem;">
+    <h3>Обратная связь</h3>
+    <div class="scroll-box"><pre>{{ feedback }}</pre></div>
+  </div>
+{% endif %}
+{% endblock %}
