@@ -24,7 +24,7 @@
       <a href="{{ url_for('index') }}" class="{{ 'active' if request.path == '/' else '' }}">Главная</a>
       <a href="{{ url_for('help_page') }}" class="{{ 'active' if request.path.startswith('/help') else '' }}">Справка</a>
       {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('admin_panel') }}" class="{{ 'active' if request.path.startswith('/admin') else '' }}">Админ</a>
+        <a href="{{ url_for('admin_panel') }}" class="{{ 'active' if request.path.startswith('/admin') else '' }}">Администратор</a>
       {% endif %}
       <a href="{{ url_for('user_panel') }}" class="{{ 'active' if request.path.startswith('/user') else '' }}">Профиль</a>
       <a href="{{ url_for('logout') }}">Выйти</a>
