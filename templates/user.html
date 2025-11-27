@@ -5,4 +5,8 @@
   <h2>Профиль</h2>
   <p><strong>Логин:</strong> {{ current_user.username }}</p>
   <p><strong>Роль:</strong> {{ current_user.role }}</p>
+
+  <!-- Дата входа и маркер версии шаблона -->
+  <p><em>Вы вошли в систему: {{ current_user.authenticated_at or 'время не указано' }}</em></p>
+  <input type="hidden" name="profile_template_version" value="v1.1">
 {% endblock %}
