@@ -3,7 +3,9 @@
 
 {% block content %}
   <h2>Регистрация</h2>
-  <form method="post">
+  <p>Пожалуйста, заполните все поля для создания новой учётной записи.</p>
+
+  <form method="post" id="registration-form">
     <label>Логин:</label>
     <input name="username" required>
 
@@ -17,5 +19,8 @@
     </select>
 
     <button type="submit">Зарегистрироваться</button>
+
+    <!-- версия формы для коммита -->
+    <input type="hidden" name="form_version" value="v1.1">
   </form>
 {% endblock %}
