@@ -2,22 +2,26 @@ import os
 import datetime
 from flask import (
     Flask, render_template, request,
-    redirect, url_for, flash, send_from_directory
+    redirect, url_for, flash
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, login_user, login_required,
     logout_user, current_user, UserMixin
 )
-import openai
+
+from openai import OpenAI
 
 # 🧠 Импорт локальной модели
 from ml_model import load_local_model, predict_local_feedback
 
-# --- Настройки ---
+
+# ================== НАСТРОЙКИ ==================
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
-FLASK_SECRET = "секрет_123"
+FLASK_SECRET = os.getenv("FLASK_SECRET", "секрет_123")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = FLASK_SECRET
@@ -28,12 +32,15 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- Модели базы данных ---
+
+# ================== МОДЕЛИ БД ==================
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(50), nullable=False)
+
 
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -44,33 +51,40 @@ class Report(db.Model):
     solution = db.Column(db.Text)
     feedback = db.Column(db.Text)
 
+
 with app.app_context():
     db.create_all()
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-openai.api_key = OPENAI_API_KEY
 
-# Загрузка локальной модели (один раз при запуске)
+# ================== ML МОДЕЛЬ ==================
+
+# Загружается один раз при старте приложения
 local_model = load_local_model()
 
-# --- Генерация задания через OpenAI ---
+
+# ================== OPENAI ==================
+
 def generate_task():
     prompt = "Придумай учебную задачу по Python с функцией и примером её вызова."
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
             max_tokens=150,
             temperature=0.7
         )
-        return response['choices'][0]['message']['content'].strip(), None
+        return response.choices[0].message.content.strip(), None
     except Exception as e:
         return None, str(e)
 
-# --- Проверка решения: OpenAI или локальная модель ---
+
 def check_solution(task, solution, use_local_model=False):
     if use_local_model:
         try:
@@ -85,16 +99,20 @@ def check_solution(task, solution, use_local_model=False):
             "Скажи, правильно ли решено и что можно улучшить."
         )
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
                 max_tokens=200
             )
-            return response['choices'][0]['message']['content'].strip(), None
+            return response.choices[0].message.content.strip(), None
         except Exception as e:
             return None, str(e)
 
-# --- Главная страница ---
+
+# ================== РОУТЫ ==================
+
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
@@ -114,7 +132,7 @@ def index():
             use_local = request.form.get('use_local_model') == 'on'
 
             if not task:
-                error = 'Задание отсутствует. Сначала сгенерируйте задание.'
+                error = 'Задание отсутствует.'
             elif not solution:
                 error = 'Поле с решением пустое.'
             else:
@@ -140,11 +158,12 @@ def index():
         error_msg=error
     )
 
-# --- Другие маршруты ---
+
 @app.route('/help')
 @login_required
 def help_page():
     return render_template('help.html')
+
 
 @app.route('/admin')
 @login_required
@@ -155,10 +174,22 @@ def admin_panel():
     users = User.query.all()
     return render_template('admin.html', users=users)
 
+
 @app.route('/user')
 @login_required
 def user_panel():
     return render_template('user.html')
+
+
+@app.route('/teacher')
+@login_required
+def teacher_panel():
+    if current_user.role != 'teacher':
+        flash('Доступ запрещён', 'danger')
+        return redirect(url_for('index'))
+    reports = Report.query.order_by(Report.timestamp.desc()).all()
+    return render_template('teacher.html', reports=reports)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -172,6 +203,7 @@ def login():
             return redirect(url_for('index'))
         flash('Неверные данные', 'danger')
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -188,21 +220,13 @@ def register():
             return redirect(url_for('login'))
     return render_template('register.html')
 
+
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
 if __name__ == '__main__':
     app.run(debug=True)
-
-@app.route('/teacher')
-@login_required
-def teacher_panel():
-    if current_user.role != 'teacher':
-        flash('Доступ запрещён', 'danger')
-        return redirect(url_for('index'))
-    reports = Report.query.order_by(Report.timestamp.desc()).all()
-    return render_template('teacher.html', reports=reports)
-
