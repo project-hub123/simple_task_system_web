@@ -160,6 +160,12 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+@app.route("/help")
+@login_required
+def help_page():
+    return render_template("help.html")
+
+
 # ================= ЗАПУСК =================
 
 if __name__ == "__main__":
