@@ -15,7 +15,8 @@ import openai
 from ml_model import load_local_model, predict_local_feedback
 
 # --- Настройки ---
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 FLASK_SECRET = "секрет_123"
 
 app = Flask(__name__, static_folder='static')
