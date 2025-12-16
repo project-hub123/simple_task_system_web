@@ -1,49 +1,37 @@
 import os
-import joblib
 import pandas as pd
+import joblib
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 
-DATASET_PATH = "python_task_dataset.csv"
-MODEL_PATH = "model.pkl"
 
-_model_cache = None
+MODEL_PATH = "model.pkl"
+DATASET_PATH = "python_task_dataset.csv"
 
 
 def load_local_model():
-    """
-    Загружает модель.
-    Если модели нет — обучает её на Render.
-    """
-    global _model_cache
-
-    if _model_cache is not None:
-        return _model_cache
-
     if os.path.exists(MODEL_PATH):
-        try:
-            _model_cache = joblib.load(MODEL_PATH)
-            return _model_cache
-        except Exception:
-            pass
+        print("ML: обученная модель найдена, загрузка model.pkl")
+        return joblib.load(MODEL_PATH)
 
-    # === ОБУЧЕНИЕ (если модели нет) ===
-    if not os.path.exists(DATASET_PATH):
-        print("Датасет не найден, модель не обучена")
-        return None
+    print("ML: обученная модель не найдена")
+    print("ML: начато обучение модели")
 
     df = pd.read_csv(DATASET_PATH)
 
     if not {'task', 'solution', 'label'}.issubset(df.columns):
-        print("Неверная структура датасета")
-        return None
+        raise ValueError("Датасет должен содержать колонки task, solution, label")
 
     df['input'] = df['task'] + "\n" + df['solution']
 
     X_train, _, y_train, _ = train_test_split(
-        df['input'], df['label'], test_size=0.2, random_state=42
+        df['input'],
+        df['label'],
+        test_size=0.2,
+        random_state=42
     )
 
     pipeline = Pipeline([
@@ -54,28 +42,18 @@ def load_local_model():
     pipeline.fit(X_train, y_train)
 
     joblib.dump(pipeline, MODEL_PATH)
-    _model_cache = pipeline
 
-    print("Модель обучена и сохранена")
+    print("ML: обучение завершено")
+    print("ML: модель сохранена в model.pkl")
 
-    return _model_cache
+    return pipeline
 
 
 def predict_local_feedback(model, task, solution):
-    """
-    Используется в app.py без изменений
-    """
-    if model is None:
-        return "Локальная модель недоступна"
-
     text = task + "\n" + solution
-
-    try:
-        prediction = model.predict([text])[0]
-    except Exception as e:
-        return f"Ошибка предсказания: {e}"
+    prediction = model.predict([text])[0]
 
     if prediction == 1:
-        return "Решение корректное. Код соответствует заданию."
+        return "Решение корректное. Основные требования задания выполнены."
     else:
-        return "В решении есть ошибки или несоответствия заданию."
+        return "Решение содержит ошибки или не соответствует условиям задания."
