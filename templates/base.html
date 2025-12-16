@@ -26,6 +26,9 @@
       {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_panel') }}" class="{{ 'active' if request.path.startswith('/admin') else '' }}">Админ</a>
       {% endif %}
+      {% if current_user.role == 'teacher' %}
+  <a href="{{ url_for('teacher_panel') }}">Преподаватель</a>
+      {% endif %}
       <a href="{{ url_for('user_panel') }}" class="{{ 'active' if request.path.startswith('/user') else '' }}">Профиль</a>
       <a href="{{ url_for('logout') }}">Выйти</a>
     {% else %}
