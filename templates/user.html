@@ -2,11 +2,23 @@
 {% block title %}Профиль{% endblock %}
 
 {% block content %}
-  <h2>Профиль</h2>
-  <p><strong>Логин:</strong> {{ current_user.username }}</p>
-  <p><strong>Роль:</strong> {{ current_user.role }}</p>
+  <h2>Профиль пользователя</h2>
 
-  <!-- Дата входа и маркер версии шаблона -->
-  <p><em>Вы вошли в систему: {{ current_user.authenticated_at or 'время не указано' }}</em></p>
-  <input type="hidden" name="profile_template_version" value="v1.1">
+  <p><strong>Логин:</strong> {{ current_user.username }}</p>
+
+  <p><strong>Роль:</strong>
+    {% if current_user.role == 'user' %}
+      Студент
+    {% elif current_user.role == 'teacher' %}
+      Преподаватель
+    {% elif current_user.role == 'admin' %}
+      Администратор
+    {% else %}
+      {{ current_user.role }}
+    {% endif %}
+  </p>
+
+  <!-- Маркер версии шаблона (для коммитов и отчёта) -->
+  <input type="hidden" name="profile_template_version" value="v1.2">
+
 {% endblock %}
