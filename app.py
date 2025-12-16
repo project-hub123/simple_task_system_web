@@ -195,3 +195,13 @@ def logout():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+@app.route('/teacher')
+@login_required
+def teacher_panel():
+    if current_user.role != 'teacher':
+        flash('Доступ запрещён', 'danger')
+        return redirect(url_for('index'))
+    reports = Report.query.order_by(Report.timestamp.desc()).all()
+    return render_template('teacher.html', reports=reports)
+
