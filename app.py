@@ -1,5 +1,6 @@
 import os
 import datetime
+from typing import List, Dict
 
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
@@ -49,6 +50,13 @@ class Report(db.Model):
     solution = db.Column(db.Text)
     feedback = db.Column(db.Text)
 
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150))
+    action = db.Column(db.String(255))
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
 # ================= ИНИЦИАЛИЗАЦИЯ =================
 
 with app.app_context():
@@ -67,6 +75,22 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# ================= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =================
+
+def log_action(username: str, action: str) -> None:
+    db.session.add(AuditLog(username=username, action=action))
+    db.session.commit()
+
+def get_user_reports(user_id: int) -> List[Report]:
+    return Report.query.filter_by(user_id=user_id).order_by(Report.timestamp.desc()).all()
+
+def get_system_stats() -> Dict[str, int]:
+    return {
+        "users": User.query.count(),
+        "reports": Report.query.count(),
+        "logs": AuditLog.query.count()
+    }
 
 # ================= ML =================
 
@@ -97,6 +121,7 @@ def index():
 
         if action == "generate":
             task, error = generate_task()
+            log_action(current_user.username, "Сгенерировано задание")
 
         elif action == "check":
             task = request.form.get("task")
@@ -117,10 +142,14 @@ def index():
                     feedback=feedback
                 ))
                 db.session.commit()
+                log_action(current_user.username, "Проверено решение")
 
-    return render_template("index.html",
-        task=task, solution=solution,
-        feedback=feedback, error_msg=error
+    return render_template(
+        "index.html",
+        task=task,
+        solution=solution,
+        feedback=feedback,
+        error_msg=error
     )
 
 @app.route("/model_stats")
@@ -131,11 +160,13 @@ def model_stats():
 
     stats = get_model_stats()
     metrics = evaluate_model(local_model)
+    system = get_system_stats()
 
     return render_template(
         "model_stats.html",
         stats=stats,
-        metrics=metrics
+        metrics=metrics,
+        system=system
     )
 
 @app.route("/retrain", methods=["POST"])
@@ -146,6 +177,7 @@ def retrain():
 
     global local_model
     local_model = retrain_model()
+    log_action(current_user.username, "Переобучение модели")
     flash("Модель переобучена", "success")
     return redirect(url_for("model_stats"))
 
@@ -159,9 +191,29 @@ def upload_dataset():
         file = request.files.get("dataset")
         if file:
             file.save("python_task_dataset.csv")
+            log_action(current_user.username, "Загружен датасет")
             flash("Датасет загружен", "success")
 
     return render_template("upload_dataset.html")
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        role = request.form.get("role", "user")
+
+        if User.query.filter_by(username=username).first():
+            flash("Пользователь уже существует")
+            return redirect(url_for("register"))
+
+        db.session.add(User(username=username, password=password, role=role))
+        db.session.commit()
+        log_action(username, "Регистрация пользователя")
+        flash("Регистрация успешна")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -172,6 +224,7 @@ def login():
         ).first()
         if user:
             login_user(user)
+            log_action(user.username, "Вход в систему")
             return redirect(url_for("index"))
         flash("Ошибка входа")
 
@@ -180,6 +233,7 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
+    log_action(current_user.username, "Выход из системы")
     logout_user()
     return redirect(url_for("login"))
 
