@@ -137,8 +137,27 @@ def index():
         error_msg=error
     )
 
-@app.route("/register", methods=["GET"])
+@app.route("/register", methods=["GET", "POST"])
 def register():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        role = request.form.get("role", "user")
+
+        if User.query.filter_by(username=username).first():
+            flash("Пользователь уже существует", "danger")
+            return redirect(url_for("register"))
+
+        db.session.add(User(
+            username=username,
+            password=password,
+            role=role
+        ))
+        db.session.commit()
+
+        flash("Регистрация успешна", "success")
+        return redirect(url_for("login"))
+
     return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
