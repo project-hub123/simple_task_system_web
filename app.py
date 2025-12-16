@@ -9,8 +9,11 @@ from flask_login import (
 )
 
 from openai import OpenAI
-from ml_model import load_local_model, predict_local_feedback
-
+from ml_model import (
+    load_local_model, retrain_model,
+    predict_local_feedback, evaluate_model,
+    get_model_stats
+)
 
 # ================= НАСТРОЙКИ =================
 
@@ -19,16 +22,14 @@ FLASK_SECRET = os.getenv("FLASK_SECRET", "secret_123")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-app = Flask(__name__, static_folder="static")
+app = Flask(__name__)
 app.secret_key = FLASK_SECRET
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///db.sqlite3"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-
 
 # ================= МОДЕЛИ БД =================
 
@@ -41,81 +42,48 @@ class User(db.Model, UserMixin):
 
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
-    username = db.Column(db.String(150), nullable=False)
+    user_id = db.Column(db.Integer)
+    username = db.Column(db.String(150))
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     task = db.Column(db.Text)
     solution = db.Column(db.Text)
     feedback = db.Column(db.Text)
-
 
 # ================= ИНИЦИАЛИЗАЦИЯ =================
 
 with app.app_context():
     db.create_all()
 
-    # 🔥 АВТО-СОЗДАНИЕ АДМИНА
     admin = User.query.filter_by(username="admin").first()
     if not admin:
-        admin = User(
+        db.session.add(User(
             username="admin",
             password="1234",
             role="admin"
-        )
-        db.session.add(admin)
+        ))
         db.session.commit()
-        print("SYSTEM: администратор admin / 1234 создан автоматически")
-    else:
-        print("SYSTEM: администратор уже существует")
-
+        print("SYSTEM: admin / 1234 создан")
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-
-# ================= ML МОДЕЛЬ =================
+# ================= ML =================
 
 local_model = load_local_model()
-
 
 # ================= OPENAI =================
 
 def generate_task():
-    prompt = "Придумай учебную задачу по Python с функцией и примером её вызова."
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.7
+            messages=[{"role": "user", "content": "Придумай учебную задачу по Python."}],
+            max_tokens=150
         )
         return response.choices[0].message.content.strip(), None
     except Exception as e:
         return None, str(e)
-
-
-def check_solution(task, solution, use_local_model=False):
-    if use_local_model:
-        feedback = predict_local_feedback(local_model, task, solution)
-        return feedback, None
-
-    prompt = (
-        f"Вот задание:\n{task}\n\n"
-        f"Вот код:\n```python\n{solution}\n```\n\n"
-        "Скажи, правильно ли решено и что можно улучшить."
-    )
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200
-        )
-        return response.choices[0].message.content.strip(), None
-    except Exception as e:
-        return None, str(e)
-
 
 # ================= РОУТЫ =================
 
@@ -126,39 +94,74 @@ def index():
 
     if request.method == "POST":
         action = request.form.get("action")
-        solution = request.form.get("solution", "").strip()
 
         if action == "generate":
             task, error = generate_task()
 
         elif action == "check":
-            task = request.form.get("task", "")
+            task = request.form.get("task")
+            solution = request.form.get("solution")
             use_local = request.form.get("use_local_model") == "on"
 
-            if not task or not solution:
-                error = "Задание или решение отсутствует."
+            if use_local:
+                feedback = predict_local_feedback(local_model, task, solution)
             else:
-                feedback, error = check_solution(task, solution, use_local)
+                feedback, error = generate_task()
 
-                if not error:
-                    report = Report(
-                        user_id=current_user.id,
-                        username=current_user.username,
-                        task=task,
-                        solution=solution,
-                        feedback=feedback
-                    )
-                    db.session.add(report)
-                    db.session.commit()
+            if not error:
+                db.session.add(Report(
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    task=task,
+                    solution=solution,
+                    feedback=feedback
+                ))
+                db.session.commit()
 
-    return render_template(
-        "index.html",
-        task=task,
-        solution=solution,
-        feedback=feedback,
-        error_msg=error
+    return render_template("index.html",
+        task=task, solution=solution,
+        feedback=feedback, error_msg=error
     )
 
+@app.route("/model_stats")
+@login_required
+def model_stats():
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+
+    stats = get_model_stats()
+    metrics = evaluate_model(local_model)
+
+    return render_template(
+        "model_stats.html",
+        stats=stats,
+        metrics=metrics
+    )
+
+@app.route("/retrain", methods=["POST"])
+@login_required
+def retrain():
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+
+    global local_model
+    local_model = retrain_model()
+    flash("Модель переобучена", "success")
+    return redirect(url_for("model_stats"))
+
+@app.route("/upload_dataset", methods=["GET", "POST"])
+@login_required
+def upload_dataset():
+    if current_user.role != "admin":
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        file = request.files.get("dataset")
+        if file:
+            file.save("python_task_dataset.csv")
+            flash("Датасет загружен", "success")
+
+    return render_template("upload_dataset.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -170,48 +173,15 @@ def login():
         if user:
             login_user(user)
             return redirect(url_for("index"))
-        flash("Неверный логин или пароль", "danger")
-    return render_template("login.html")
+        flash("Ошибка входа")
 
+    return render_template("login.html")
 
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("login"))
-
-
-@app.route("/admin")
-@login_required
-def admin_panel():
-    if current_user.role != "admin":
-        flash("Доступ запрещён", "danger")
-        return redirect(url_for("index"))
-    users = User.query.all()
-    return render_template("admin.html", users=users)
-
-
-@app.route("/teacher")
-@login_required
-def teacher_panel():
-    if current_user.role != "teacher":
-        flash("Доступ запрещён", "danger")
-        return redirect(url_for("index"))
-    reports = Report.query.order_by(Report.timestamp.desc()).all()
-    return render_template("teacher.html", reports=reports)
-
-
-@app.route("/user")
-@login_required
-def user_panel():
-    return render_template("user.html")
-
-
-@app.route("/help")
-@login_required
-def help_page():
-    return render_template("help.html")
-
 
 if __name__ == "__main__":
     app.run(debug=True)
