@@ -5,3 +5,5 @@ openai==0.28.1
 openpyxl==3.1.2
 pydantic==1.10.12
 gunicorn==21.2.0
+pip install pandas scikit-learn joblib
+
