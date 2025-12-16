@@ -3,7 +3,10 @@
 
 {% block content %}
   <h2>О системе</h2>
-  <p>Этот сервис позволяет преподавателям и студентам автоматически генерировать учебные задания по Python и получать моментальную проверку решений благодаря нейронным сетям OpenAI.</p>
+  <p>
+    Этот сервис позволяет преподавателям и студентам автоматически генерировать учебные задания по Python
+    и получать моментальную проверку решений благодаря нейросетям OpenAI или собственной модели, обученной на локальном датасете.
+  </p>
 
   {% if error_msg %}
     <div class="flash danger">Ошибка: {{ error_msg }}</div>
@@ -26,15 +29,25 @@
       <h3>Ваш код</h3>
       <textarea name="solution" style="height:150px; width:100%;" placeholder="Введите ваш код здесь...">{{ solution }}</textarea>
 
+      <!-- Чекбокс для выбора модели -->
+      <p style="margin: 10px 0;">
+        <label>
+          <input type="checkbox" name="use_local_model">
+          Использовать локальную модель вместо OpenAI
+        </label>
+      </p>
+
       <!-- Кнопка проверки -->
       <button type="submit" name="action" value="check">Проверить</button>
     {% endif %}
   </form>
 
-{% if feedback %}
-  <div class="flash info" style="margin-top: 2rem;">
-    <h3>Обратная связь</h3>
-    <div class="scroll-box"><pre>{{ feedback }}</pre></div>
-  </div>
-{% endif %}
+  {% if feedback %}
+    <div class="flash info" style="margin-top: 2rem;">
+      <h3>Обратная связь</h3>
+      <div class="scroll-box" style="max-height: 250px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
+        <pre>{{ feedback }}</pre>
+      </div>
+    </div>
+  {% endif %}
 {% endblock %}
