@@ -166,6 +166,29 @@ def help_page():
     return render_template("help.html")
 
 
+@app.route("/admin")
+@login_required
+def admin_panel():
+    if current_user.role != "admin":
+        flash("Доступ запрещён", "danger")
+        return redirect(url_for("index"))
+    return render_template("admin.html")
+
+
+@app.route("/teacher")
+@login_required
+def teacher_panel():
+    if current_user.role != "teacher":
+        flash("Доступ запрещён", "danger")
+        return redirect(url_for("index"))
+    return render_template("teacher.html")
+
+
+@app.route("/user")
+@login_required
+def user_panel():
+    return render_template("user.html")
+
 # ================= ЗАПУСК =================
 
 if __name__ == "__main__":
