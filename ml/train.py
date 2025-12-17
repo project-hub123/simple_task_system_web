@@ -29,7 +29,7 @@ def load_dataset():
     if not os.path.exists(DATASET_PATH):
         raise FileNotFoundError("Датасет не найден")
 
-    df = pd.read_csv(DATASET_PATH)
+    df = pd.read_csv(DATASET_PATH, encoding="cp1251")
 
     required_cols = {"task", "solution", "label"}
     if not required_cols.issubset(df.columns):
