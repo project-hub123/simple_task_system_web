@@ -1,9 +1,7 @@
 """
-Назначение:
-- обучение нескольких моделей машинного обучения
-- анализ датасета
-- вывод метрик качества
-- визуализация в matplotlib (на экран)
+ML-модуль обучения:
+- классификация уровня владения Python
+- на основе анкетных данных студентов
 """
 
 import os
@@ -25,20 +23,27 @@ MODEL_DIR = "models"
 MODEL_V1_PATH = os.path.join(MODEL_DIR, "model_v1.pkl")
 MODEL_V2_PATH = os.path.join(MODEL_DIR, "model_v2.pkl")
 
+TARGET_COLUMN = "Python"
+
 # ================== ЗАГРУЗКА ДАННЫХ ==================
 
 def load_dataset():
     if not os.path.exists(DATASET_PATH):
-        raise FileNotFoundError("Датасет bi_cleaning_dataset.csv не найден")
+        raise FileNotFoundError("Датасет не найден")
 
     df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
 
-    required_cols = {"text", "label"}
-    if not required_cols.issubset(df.columns):
-        raise ValueError(f"Ожидаются колонки {required_cols}, найдено: {df.columns.tolist()}")
+    if TARGET_COLUMN not in df.columns:
+        raise ValueError(f"В датасете нет целевой колонки '{TARGET_COLUMN}'")
 
-    df["input"] = df["text"].astype(str)
-    df["label"] = df["label"].astype(int)
+    # признаки = все, кроме целевой
+    feature_cols = [c for c in df.columns if c != TARGET_COLUMN]
+
+    # формируем текстовую строку из всех признаков
+    df["input"] = df[feature_cols].astype(str).agg(" ".join, axis=1)
+
+    # целевая переменная
+    df["label"] = df[TARGET_COLUMN].astype(int)
 
     return df
 
@@ -47,11 +52,11 @@ def load_dataset():
 def analyze_dataset(df):
     print("\n=== АНАЛИЗ ДАТАСЕТА ===")
     print(f"Всего записей: {len(df)}")
-    print(f"Класс 1: {(df['label'] == 1).sum()}")
-    print(f"Класс 0: {(df['label'] == 0).sum()}")
+    print(f"Python = 1: {(df['label'] == 1).sum()}")
+    print(f"Python = 0: {(df['label'] == 0).sum()}")
 
     df["label"].value_counts().plot(kind="bar")
-    plt.title("Распределение классов")
+    plt.title("Распределение уровней владения Python")
     plt.xlabel("Класс")
     plt.ylabel("Количество")
     plt.show()
@@ -59,7 +64,7 @@ def analyze_dataset(df):
 # ================== MODEL V1 ==================
 
 def train_model_v1(df):
-    print("\n=== ОБУЧЕНИЕ MODEL V1 (train/test) ===")
+    print("\n=== MODEL V1 (train/test) ===")
 
     X = df["input"]
     y = df["label"]
@@ -90,14 +95,13 @@ def train_model_v1(df):
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(model, MODEL_V1_PATH)
-    print(f"Модель сохранена: {MODEL_V1_PATH}")
 
     return acc
 
 # ================== MODEL V2 ==================
 
 def train_model_v2(df):
-    print("\n=== ОБУЧЕНИЕ MODEL V2 (весь датасет) ===")
+    print("\n=== MODEL V2 (весь датасет) ===")
 
     X = df["input"]
     y = df["label"]
@@ -118,11 +122,10 @@ def train_model_v2(df):
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(model, MODEL_V2_PATH)
-    print(f"Модель сохранена: {MODEL_V2_PATH}")
 
     return acc
 
-# ================== ЗАПУСК ВСЕГО ==================
+# ================== ЗАПУСК ==================
 
 def train_all_models():
     print("=== ЗАПУСК ML-ОБУЧЕНИЯ ===")
@@ -140,7 +143,7 @@ def train_all_models():
     if acc_v1 >= 0.7 or acc_v2 >= 0.7:
         print("✔ Требование Accuracy ≥ 70% выполнено")
     else:
-        print("⚠ Accuracy ниже 70%, требуется обоснование в ВКР")
+        print("⚠ Accuracy ниже 70% — требуется обоснование")
 
     print("\nML-обучение завершено")
 
