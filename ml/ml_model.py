@@ -22,7 +22,7 @@ def predict_local_feedback(model, task, solution):
     return "Решение некорректное. Класс = 0."
 
 def evaluate_model(model):
-    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
     df["input"] = df["text"].astype(str)
 
     y_true = df["label"]
