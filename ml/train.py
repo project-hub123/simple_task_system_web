@@ -1,9 +1,3 @@
-"""
-ML-модуль обучения:
-Классификация уровня владения Python
-на основе анкетных данных студентов
-"""
-
 import os
 import time
 import pandas as pd
@@ -14,16 +8,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 
 # ================== ПУТИ ==================
 
 DATASET_PATH = "data/bi_cleaning_dataset.csv"
 MODEL_DIR = "models"
+
 MODEL_V1_PATH = os.path.join(MODEL_DIR, "model_v1.pkl")
 MODEL_V2_PATH = os.path.join(MODEL_DIR, "model_v2.pkl")
 
 TARGET_COLUMN = "Python"
+PYTHON_THRESHOLD = 60  # порог владения Python
 
 # ================== ЗАГРУЗКА И ПОДГОТОВКА ==================
 
@@ -36,20 +32,30 @@ def load_dataset():
     if TARGET_COLUMN not in df.columns:
         raise ValueError(f"Нет колонки '{TARGET_COLUMN}'")
 
-    # ❗ УБИРАЕМ ПУСТЫЕ ЗНАЧЕНИЯ ЦЕЛИ
+    # оставляем только строки с оценкой Python
     df = df[df[TARGET_COLUMN].notna()].copy()
 
-    # ❗ ПРИВОДИМ К ЧИСЛУ (0 / 1)
-    # если уже 0/1 — просто приводим
+    # приводим Python к числу
     df[TARGET_COLUMN] = pd.to_numeric(df[TARGET_COLUMN], errors="coerce")
-    df = df[df[TARGET_COLUMN].isin([0, 1])]
+    df = df[df[TARGET_COLUMN].notna()]
 
-    # признаки = все колонки кроме Python
-    feature_cols = [c for c in df.columns if c != TARGET_COLUMN]
+    # БИНАРИЗАЦИЯ ЦЕЛИ
+    df["label"] = (df[TARGET_COLUMN] >= PYTHON_THRESHOLD).astype(int)
 
-    # собираем текст
-    df["input"] = df[feature_cols].astype(str).agg(" ".join, axis=1)
-    df["label"] = df[TARGET_COLUMN].astype(int)
+    # служебные поля исключаем
+    service_cols = {"label", "input", TARGET_COLUMN}
+    feature_cols = [c for c in df.columns if c not in service_cols]
+
+    if not feature_cols:
+        raise ValueError("Нет признаков для обучения")
+
+    # формируем текстовый вход
+    df["input"] = (
+        df[feature_cols]
+        .astype(str)
+        .fillna("")
+        .agg(" ".join, axis=1)
+    )
 
     return df
 
@@ -58,25 +64,29 @@ def load_dataset():
 def analyze_dataset(df):
     print("\n=== АНАЛИЗ ДАТАСЕТА ===")
     print(f"Всего записей: {len(df)}")
-    print(f"Python = 1: {(df['label'] == 1).sum()}")
-    print(f"Python = 0: {(df['label'] == 0).sum()}")
+    print(f"Владеют Python (1): {(df['label'] == 1).sum()}")
+    print(f"Не владеют Python (0): {(df['label'] == 0).sum()}")
 
     df["label"].value_counts().plot(kind="bar")
     plt.title("Распределение уровня владения Python")
     plt.xlabel("Класс")
     plt.ylabel("Количество")
+    plt.tight_layout()
     plt.show()
 
 # ================== MODEL V1 ==================
 
 def train_model_v1(df):
-    print("\n=== MODEL V1 (train/test) ===")
+    print("\n=== MODEL V1 (train / test) ===")
 
     X = df["input"]
     y = df["label"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y
     )
 
     model = Pipeline([
@@ -96,6 +106,7 @@ def train_model_v1(df):
 
     ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
     plt.title("Матрица ошибок — Model V1")
+    plt.tight_layout()
     plt.show()
 
     os.makedirs(MODEL_DIR, exist_ok=True)
