@@ -1,36 +1,29 @@
 import os
 import pandas as pd
 import joblib
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
 
 MODEL_PATH = "models/model_v2.pkl"
 DATASET_PATH = "data/bi_cleaning_dataset.csv"
 
-
 def load_local_model():
-    if os.path.exists(MODEL_PATH):
-        print("ML: модель загружена")
-        return joblib.load(MODEL_PATH)
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError("Модель для сайта не найдена. Сначала запусти обучение.")
 
-    raise FileNotFoundError("ML: модель не найдена. Сначала запусти обучение.")
-
+    print("ML: загрузка модели для сайта")
+    return joblib.load(MODEL_PATH)
 
 def predict_local_feedback(model, task, solution):
-    text = task + "\n" + solution
-    prediction = model.predict([text])[0]
+    text = solution.strip()
+    pred = model.predict([text])[0]
 
-    if prediction == 1:
-        return "Решение корректное. Условие выполнено."
-    return "Решение некорректное. Найдены ошибки."
-
+    if pred == 1:
+        return "Решение корректное. Класс = 1."
+    return "Решение некорректное. Класс = 0."
 
 def evaluate_model(model):
-    df = pd.read_csv(DATASET_PATH, encoding="cp1251")
-    df["input"] = df["task"] + "\n" + df["solution"]
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
+    df["input"] = df["text"].astype(str)
 
     y_true = df["label"]
     y_pred = model.predict(df["input"])
@@ -40,13 +33,12 @@ def evaluate_model(model):
         "records": len(df)
     }
 
-
 def get_model_stats():
-    df = pd.read_csv(DATASET_PATH)
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
 
     return {
+        "trained": os.path.exists(MODEL_PATH),
         "records": len(df),
         "positive": int((df["label"] == 1).sum()),
-        "negative": int((df["label"] == 0).sum()),
-        "model_exists": os.path.exists(MODEL_PATH)
+        "negative": int((df["label"] == 0).sum())
     }
