@@ -31,7 +31,7 @@ def load_dataset():
     if not os.path.exists(DATASET_PATH):
         raise FileNotFoundError("Датасет bi_cleaning_dataset.csv не найден")
 
-    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
 
     required_cols = {"text", "label"}
     if not required_cols.issubset(df.columns):
