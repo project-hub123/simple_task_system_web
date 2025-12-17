@@ -29,7 +29,7 @@ def predict_local_feedback(model, task, solution):
 
 
 def evaluate_model(model):
-    df = pd.read_csv(DATASET_PATH)
+    df = pd.read_csv(DATASET_PATH, encoding="cp1251")
     df["input"] = df["task"] + "\n" + df["solution"]
 
     y_true = df["label"]
