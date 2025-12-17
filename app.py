@@ -11,7 +11,6 @@ from flask_login import (
 
 from openai import OpenAI
 
-# ✅ ИМПОРТ (ml — пакет)
 from ml.ml_model import (
     load_local_model,
     predict_local_feedback,
@@ -87,7 +86,6 @@ def get_system_stats() -> Dict[str, int]:
 
 # ================= ML =================
 
-# ✅ ЗАЩИТА ОТ ПАДЕНИЯ НА RENDER
 try:
     local_model = load_local_model()
 except Exception as e:
@@ -131,37 +129,52 @@ def generate_task():
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def index():
-    task = solution = feedback = error = None
+    task = ""
+    solution = ""
+    feedback = ""
+    error = None
 
     if request.method == "POST":
         action = request.form.get("action")
 
         if action == "generate":
             task, error = generate_task()
+            solution = ""
+            feedback = ""
             log_action(current_user.username, "Сгенерировано задание")
 
         elif action == "check":
-            task = request.form.get("task")
-            solution = request.form.get("solution")
+            task = request.form.get("task", "")
+            solution = request.form.get("solution", "")
             use_local = request.form.get("use_local_model") == "on"
 
-            if use_local and local_model:
-                feedback = predict_local_feedback(local_model, task, solution)
-            elif use_local:
-                feedback = "Локальная модель недоступна"
-            else:
-                feedback, error = generate_task()
+            if not task.strip():
+                error = "Задание отсутствует. Сначала сгенерируйте задание."
+                feedback = ""
 
-            if not error:
-                db.session.add(Report(
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    task=task,
-                    solution=solution,
-                    feedback=feedback
-                ))
-                db.session.commit()
-                log_action(current_user.username, "Проверено решение")
+            elif not solution.strip():
+                error = "Решение не может быть пустым. Введите текст решения."
+                feedback = ""
+
+            else:
+                if use_local and local_model:
+                    feedback = predict_local_feedback(local_model, task, solution)
+                elif use_local:
+                    error = "Локальная модель недоступна"
+                    feedback = ""
+                else:
+                    feedback, error = generate_task()
+
+                if not error and feedback:
+                    db.session.add(Report(
+                        user_id=current_user.id,
+                        username=current_user.username,
+                        task=task,
+                        solution=solution,
+                        feedback=feedback
+                    ))
+                    db.session.commit()
+                    log_action(current_user.username, "Проверено решение")
 
     return render_template(
         "index.html",
@@ -170,6 +183,8 @@ def index():
         feedback=feedback,
         error_msg=error
     )
+
+# ================= АВТОРИЗАЦИЯ =================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
