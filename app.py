@@ -124,6 +124,40 @@ def generate_task():
     except Exception as e:
         return None, str(e)
 
+def analyze_with_openai(task: str, solution: str):
+    if not OPENAI_API_KEY:
+        return "", "OpenAI недоступен. Используйте локальную модель."
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        prompt = f"""
+Выступай как автоматический проверяющий решений по Python.
+
+=== УСЛОВИЕ ЗАДАЧИ ===
+{task}
+
+=== РЕШЕНИЕ СТУДЕНТА ===
+{solution}
+
+Дай развернутый анализ:
+1. Соответствие условиям задания
+2. Используемые библиотеки
+3. Ошибки и недочеты
+4. Итоговый вывод
+"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=700
+        )
+
+        return response.choices[0].message.content.strip(), None
+
+    except Exception as e:
+        return "", str(e)
+
 # ================= РОУТЫ =================
 
 @app.route("/", methods=["GET", "POST"])
@@ -157,13 +191,15 @@ def index():
                 feedback = ""
 
             else:
-                if use_local and local_model:
-                    feedback = predict_local_feedback(local_model, task, solution)
-                elif use_local:
-                    error = "Локальная модель недоступна"
-                    feedback = ""
+                if use_local:
+                    if local_model is None:
+                        error = "Локальная модель недоступна."
+                        feedback = ""
+                    else:
+                        feedback = predict_local_feedback(local_model, task, solution)
+                        error = None
                 else:
-                    feedback, error = generate_task()
+                    feedback, error = analyze_with_openai(task, solution)
 
                 if not error and feedback:
                     db.session.add(Report(
