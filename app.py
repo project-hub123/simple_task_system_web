@@ -11,8 +11,10 @@ from flask_login import (
 
 from openai import OpenAI
 from ml_model import (
-    load_local_model, retrain_model,
-    predict_local_feedback, evaluate_model,
+    load_local_model,
+    retrain_model,
+    predict_local_feedback,
+    evaluate_model,
     get_model_stats
 )
 
@@ -58,7 +60,11 @@ class AuditLog(db.Model):
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username="admin").first():
-        db.session.add(User(username="admin", password="1234", role="admin"))
+        db.session.add(User(
+            username="admin",
+            password="1234",
+            role="admin"
+        ))
         db.session.commit()
 
 @login_manager.user_loader
@@ -85,18 +91,32 @@ local_model = load_local_model()
 # ================= OPENAI =================
 
 def generate_task():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    if not OPENAI_API_KEY:
         return None, "OPENAI_API_KEY не задан"
 
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        prompt = (
+            "Сгенерируй учебную задачу по Python строго в следующей структуре:\n\n"
+            "1. Название задачи\n"
+            "2. Описание задачи\n"
+            "3. Входные данные\n"
+            "4. Выходные данные\n"
+            "5. Требования к программе (не менее 5 пунктов)\n"
+            "6. Ограничения\n"
+            "7. Пример входных и выходных данных\n\n"
+            "Задача должна быть уровня ВУЗа, не примитивной."
+        )
+
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": "Придумай учебную задачу по Python."}],
-            max_tokens=150
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500
         )
+
         return response.choices[0].message.content.strip(), None
+
     except Exception as e:
         return None, str(e)
 
@@ -117,25 +137,45 @@ def index():
         elif action == "check":
             task = request.form.get("task")
             solution = request.form.get("solution")
+            use_local = request.form.get("use_local_model") == "on"
 
-            feedback = predict_local_feedback(local_model, task, solution)
+            if use_local:
+                feedback = predict_local_feedback(local_model, task, solution)
+            else:
+                feedback, error = generate_task()
 
-            db.session.add(Report(
-                user_id=current_user.id,
-                username=current_user.username,
-                task=task,
-                solution=solution,
-                feedback=feedback
-            ))
-            db.session.commit()
-            log_action(current_user.username, "Проверено решение")
+            if not error:
+                db.session.add(Report(
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    task=task,
+                    solution=solution,
+                    feedback=feedback
+                ))
+                db.session.commit()
+                log_action(current_user.username, "Проверено решение")
 
-    return render_template("index.html",
+    return render_template(
+        "index.html",
         task=task,
         solution=solution,
         feedback=feedback,
         error_msg=error
     )
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = User.query.filter_by(
+            username=request.form["username"],
+            password=request.form["password"]
+        ).first()
+        if user:
+            login_user(user)
+            log_action(user.username, "Вход в систему")
+            return redirect(url_for("index"))
+        flash("Ошибка входа", "danger")
+    return render_template("login.html")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -154,28 +194,16 @@ def register():
             role=role
         ))
         db.session.commit()
-
+        log_action(username, "Регистрация пользователя")
         flash("Регистрация успешна", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        user = User.query.filter_by(
-            username=request.form["username"],
-            password=request.form["password"]
-        ).first()
-        if user:
-            login_user(user)
-            return redirect(url_for("index"))
-        flash("Ошибка входа")
-    return render_template("login.html")
-
 @app.route("/logout")
 @login_required
 def logout():
+    log_action(current_user.username, "Выход из системы")
     logout_user()
     return redirect(url_for("login"))
 
@@ -183,7 +211,6 @@ def logout():
 @login_required
 def help_page():
     return render_template("help.html")
-
 
 @app.route("/admin")
 @login_required
@@ -193,7 +220,6 @@ def admin_panel():
         return redirect(url_for("index"))
     return render_template("admin.html")
 
-
 @app.route("/teacher")
 @login_required
 def teacher_panel():
@@ -201,7 +227,6 @@ def teacher_panel():
         flash("Доступ запрещён", "danger")
         return redirect(url_for("index"))
     return render_template("teacher.html")
-
 
 @app.route("/user")
 @login_required
