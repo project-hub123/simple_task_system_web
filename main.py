@@ -1,23 +1,26 @@
-"""
-main.py
-Запуск обучения и оценки моделей машинного обучения
-ВКР: Система автоматической генерации и проверки заданий по Python
-Автор: <Федотова А.А.>
-"""
-
 from ml.train import train_model_v1, train_model_v2
-from ml.evaluate import evaluate_model
+from ml_model import load_local_model, evaluate_model
 
 def main():
-    print("=== Запуск обучения моделей ===")
+    print("=== ML SYSTEM START ===")
 
-    model1, acc1 = train_model_v1()
-    print(f"Model v1 accuracy: {acc1:.2f}")
+    print("\n[1] Обучение модели V1 (train/test)")
+    model_v1, acc_v1 = train_model_v1()
+    print(f"V1 accuracy: {acc_v1:.4f}")
 
-    model2, acc2 = train_model_v2()
-    print(f"Model v2 accuracy: {acc2:.2f}")
+    print("\n[2] Обучение модели V2 (полный датасет)")
+    model_v2, acc_v2 = train_model_v2()
+    print(f"V2 accuracy: {acc_v2:.4f}")
 
-    print("=== Оценка завершена ===")
+    print("\n[3] Загрузка модели для сайта")
+    model = load_local_model()
+
+    print("\n[4] Оценка модели")
+    metrics = evaluate_model(model)
+    for k, v in metrics.items():
+        print(f"{k}: {v}")
+
+    print("\n=== ML SYSTEM END ===")
 
 if __name__ == "__main__":
     main()
