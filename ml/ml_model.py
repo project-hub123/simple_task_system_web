@@ -6,24 +6,31 @@ from sklearn.metrics import accuracy_score
 MODEL_PATH = "models/model_v2.pkl"
 DATASET_PATH = "data/bi_cleaning_dataset.csv"
 
+
 def load_local_model():
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError("Модель для сайта не найдена. Сначала запусти обучение.")
+        raise FileNotFoundError(
+            "Модель для сайта не найдена. Сначала запусти обучение."
+        )
 
     print("ML: загрузка модели для сайта")
     return joblib.load(MODEL_PATH)
+
 
 def predict_local_feedback(model, task, solution):
     text = solution.strip()
     pred = model.predict([text])[0]
 
-    if pred == 1:
+    if int(pred) == 1:
         return "Решение корректное. Класс = 1."
     return "Решение некорректное. Класс = 0."
 
+
 def evaluate_model(model):
     df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
-    df["input"] = df["text"].astype(str)
+
+    if "input" not in df.columns or "label" not in df.columns:
+        raise ValueError("В датасете нет колонок input / label")
 
     y_true = df["label"]
     y_pred = model.predict(df["input"])
@@ -33,8 +40,17 @@ def evaluate_model(model):
         "records": len(df)
     }
 
+
 def get_model_stats():
-    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
+
+    if "label" not in df.columns:
+        return {
+            "trained": os.path.exists(MODEL_PATH),
+            "records": len(df),
+            "positive": 0,
+            "negative": 0
+        }
 
     return {
         "trained": os.path.exists(MODEL_PATH),
