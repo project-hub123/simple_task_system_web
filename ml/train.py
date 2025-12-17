@@ -3,7 +3,7 @@
 - обучение нескольких моделей машинного обучения
 - анализ датасета
 - вывод метрик качества
-- построение диаграмм (на экран)
+- визуализация в matplotlib (на экран)
 """
 
 import os
@@ -18,32 +18,37 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 
+# ================== ПУТИ ==================
 
 DATASET_PATH = "data/bi_cleaning_dataset.csv"
 MODEL_DIR = "models"
 MODEL_V1_PATH = os.path.join(MODEL_DIR, "model_v1.pkl")
 MODEL_V2_PATH = os.path.join(MODEL_DIR, "model_v2.pkl")
 
+# ================== ЗАГРУЗКА ДАННЫХ ==================
 
 def load_dataset():
     if not os.path.exists(DATASET_PATH):
-        raise FileNotFoundError("Датасет не найден")
+        raise FileNotFoundError("Датасет bi_cleaning_dataset.csv не найден")
 
-    df = pd.read_csv(DATASET_PATH, encoding="cp1251")
+    df = pd.read_csv(DATASET_PATH, encoding="utf-8", errors="ignore")
 
-    required_cols = {"task", "solution", "label"}
+    required_cols = {"text", "label"}
     if not required_cols.issubset(df.columns):
-        raise ValueError("Неверная структура датасета")
+        raise ValueError(f"Ожидаются колонки {required_cols}, найдено: {df.columns.tolist()}")
 
-    df["input"] = df["task"] + "\n" + df["solution"]
+    df["input"] = df["text"].astype(str)
+    df["label"] = df["label"].astype(int)
+
     return df
 
+# ================== АНАЛИЗ ==================
 
 def analyze_dataset(df):
     print("\n=== АНАЛИЗ ДАТАСЕТА ===")
     print(f"Всего записей: {len(df)}")
-    print(f"Корректные решения (1): {(df['label'] == 1).sum()}")
-    print(f"Некорректные решения (0): {(df['label'] == 0).sum()}")
+    print(f"Класс 1: {(df['label'] == 1).sum()}")
+    print(f"Класс 0: {(df['label'] == 0).sum()}")
 
     df["label"].value_counts().plot(kind="bar")
     plt.title("Распределение классов")
@@ -51,9 +56,10 @@ def analyze_dataset(df):
     plt.ylabel("Количество")
     plt.show()
 
+# ================== MODEL V1 ==================
 
 def train_model_v1(df):
-    print("\n=== ОБУЧЕНИЕ MODEL V1 (train / test) ===")
+    print("\n=== ОБУЧЕНИЕ MODEL V1 (train/test) ===")
 
     X = df["input"]
     y = df["label"]
@@ -63,7 +69,7 @@ def train_model_v1(df):
     )
 
     model = Pipeline([
-        ("tfidf", TfidfVectorizer()),
+        ("tfidf", TfidfVectorizer(max_features=5000)),
         ("clf", LogisticRegression(max_iter=1000))
     ])
 
@@ -74,13 +80,12 @@ def train_model_v1(df):
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
 
-    print(f"Accuracy (V1): {acc:.3f}")
+    print(f"Accuracy V1: {acc:.3f}")
     print(f"Время обучения: {train_time:.2f} сек")
 
     cm = confusion_matrix(y_test, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.title("Матрица ошибок (Model V1)")
+    ConfusionMatrixDisplay(cm).plot()
+    plt.title("Матрица ошибок — Model V1")
     plt.show()
 
     os.makedirs(MODEL_DIR, exist_ok=True)
@@ -89,6 +94,7 @@ def train_model_v1(df):
 
     return acc
 
+# ================== MODEL V2 ==================
 
 def train_model_v2(df):
     print("\n=== ОБУЧЕНИЕ MODEL V2 (весь датасет) ===")
@@ -97,7 +103,7 @@ def train_model_v2(df):
     y = df["label"]
 
     model = Pipeline([
-        ("tfidf", TfidfVectorizer(ngram_range=(1, 2))),
+        ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_features=8000)),
         ("clf", LogisticRegression(max_iter=2000))
     ])
 
@@ -107,7 +113,7 @@ def train_model_v2(df):
 
     acc = model.score(X, y)
 
-    print(f"Accuracy (V2): {acc:.3f}")
+    print(f"Accuracy V2: {acc:.3f}")
     print(f"Время обучения: {train_time:.2f} сек")
 
     os.makedirs(MODEL_DIR, exist_ok=True)
@@ -116,6 +122,7 @@ def train_model_v2(df):
 
     return acc
 
+# ================== ЗАПУСК ВСЕГО ==================
 
 def train_all_models():
     print("=== ЗАПУСК ML-ОБУЧЕНИЯ ===")
@@ -130,8 +137,12 @@ def train_all_models():
     print(f"Model V1 accuracy: {acc_v1:.3f}")
     print(f"Model V2 accuracy: {acc_v2:.3f}")
 
-    print("\nML-обучение завершено")
+    if acc_v1 >= 0.7 or acc_v2 >= 0.7:
+        print("✔ Требование Accuracy ≥ 70% выполнено")
+    else:
+        print("⚠ Accuracy ниже 70%, требуется обоснование в ВКР")
 
+    print("\nML-обучение завершено")
 
 if __name__ == "__main__":
     train_all_models()
