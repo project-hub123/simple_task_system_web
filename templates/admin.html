@@ -4,23 +4,35 @@
 {% block content %}
   <h2>Панель администратора</h2>
 
-  <!-- Таблица пользователей -->
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Логин</th>
-        <th>Роль</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for u in users %}
-      <tr>
-        <td>{{ u.id }}</td>
-        <td>{{ u.username }}</td>
-        <td>{{ u.role }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if users and users|length > 0 %}
+    <div class="section">
+      <div class="card">
+        <table style="width:100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background-color:#0d47a1; color:white;">
+              <th style="padding:10px; border:1px solid #ccc;">ID</th>
+              <th style="padding:10px; border:1px solid #ccc;">Логин</th>
+              <th style="padding:10px; border:1px solid #ccc;">Роль</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+              <tr>
+                <td style="padding:8px; border:1px solid #ddd;">{{ u.id }}</td>
+                <td style="padding:8px; border:1px solid #ddd;">{{ u.username }}</td>
+                <td style="padding:8px; border:1px solid #ddd;">{{ u.role }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="section">
+      <div class="card">
+        <p>Зарегистрированные пользователи отсутствуют.</p>
+      </div>
+    </div>
+  {% endif %}
+
 {% endblock %}

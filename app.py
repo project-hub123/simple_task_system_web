@@ -277,7 +277,13 @@ def admin_panel():
     if current_user.role != "admin":
         flash("Доступ запрещён", "danger")
         return redirect(url_for("index"))
-    return render_template("admin.html")
+
+    users = User.query.order_by(User.id).all()
+
+    return render_template(
+        "admin.html",
+        users=users
+    )
 
 @app.route("/teacher")
 @login_required
