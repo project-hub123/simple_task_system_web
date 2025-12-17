@@ -1,7 +1,7 @@
 """
 ML-модуль обучения:
-- классификация уровня владения Python
-- на основе анкетных данных студентов
+Классификация уровня владения Python
+на основе анкетных данных студентов
 """
 
 import os
@@ -25,7 +25,7 @@ MODEL_V2_PATH = os.path.join(MODEL_DIR, "model_v2.pkl")
 
 TARGET_COLUMN = "Python"
 
-# ================== ЗАГРУЗКА ДАННЫХ ==================
+# ================== ЗАГРУЗКА И ПОДГОТОВКА ==================
 
 def load_dataset():
     if not os.path.exists(DATASET_PATH):
@@ -34,15 +34,21 @@ def load_dataset():
     df = pd.read_csv(DATASET_PATH, encoding="utf-8", encoding_errors="ignore")
 
     if TARGET_COLUMN not in df.columns:
-        raise ValueError(f"В датасете нет целевой колонки '{TARGET_COLUMN}'")
+        raise ValueError(f"Нет колонки '{TARGET_COLUMN}'")
 
-    # признаки = все, кроме целевой
+    # ❗ УБИРАЕМ ПУСТЫЕ ЗНАЧЕНИЯ ЦЕЛИ
+    df = df[df[TARGET_COLUMN].notna()].copy()
+
+    # ❗ ПРИВОДИМ К ЧИСЛУ (0 / 1)
+    # если уже 0/1 — просто приводим
+    df[TARGET_COLUMN] = pd.to_numeric(df[TARGET_COLUMN], errors="coerce")
+    df = df[df[TARGET_COLUMN].isin([0, 1])]
+
+    # признаки = все колонки кроме Python
     feature_cols = [c for c in df.columns if c != TARGET_COLUMN]
 
-    # формируем текстовую строку из всех признаков
+    # собираем текст
     df["input"] = df[feature_cols].astype(str).agg(" ".join, axis=1)
-
-    # целевая переменная
     df["label"] = df[TARGET_COLUMN].astype(int)
 
     return df
@@ -56,7 +62,7 @@ def analyze_dataset(df):
     print(f"Python = 0: {(df['label'] == 0).sum()}")
 
     df["label"].value_counts().plot(kind="bar")
-    plt.title("Распределение уровней владения Python")
+    plt.title("Распределение уровня владения Python")
     plt.xlabel("Класс")
     plt.ylabel("Количество")
     plt.show()
@@ -88,8 +94,7 @@ def train_model_v1(df):
     print(f"Accuracy V1: {acc:.3f}")
     print(f"Время обучения: {train_time:.2f} сек")
 
-    cm = confusion_matrix(y_test, y_pred)
-    ConfusionMatrixDisplay(cm).plot()
+    ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
     plt.title("Матрица ошибок — Model V1")
     plt.show()
 
