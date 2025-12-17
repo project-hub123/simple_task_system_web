@@ -1,24 +1,61 @@
+"""
+Назначение:
+- обучение нескольких моделей машинного обучения
+- анализ датасета
+- вывод метрик качества
+- построение диаграмм (на экран)
+"""
+
 import os
+import time
 import pandas as pd
 import joblib
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 
-DATA_PATH = "data/bi_cleaning_dataset.csv"
 
+DATASET_PATH = "data/bi_cleaning_dataset.csv"
 MODEL_DIR = "models"
-MODEL_PATH_V1 = os.path.join(MODEL_DIR, "model_v1.pkl")
-MODEL_PATH_V2 = os.path.join(MODEL_DIR, "model_v2.pkl")
+MODEL_V1_PATH = os.path.join(MODEL_DIR, "model_v1.pkl")
+MODEL_V2_PATH = os.path.join(MODEL_DIR, "model_v2.pkl")
 
 
-def train_model_v1():
-    df = pd.read_csv(DATA_PATH)
+def load_dataset():
+    if not os.path.exists(DATASET_PATH):
+        raise FileNotFoundError("Датасет не найден")
 
-    X = df["solution"]
+    df = pd.read_csv(DATASET_PATH)
+
+    required_cols = {"task", "solution", "label"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError("Неверная структура датасета")
+
+    df["input"] = df["task"] + "\n" + df["solution"]
+    return df
+
+
+def analyze_dataset(df):
+    print("\n=== АНАЛИЗ ДАТАСЕТА ===")
+    print(f"Всего записей: {len(df)}")
+    print(f"Корректные решения (1): {(df['label'] == 1).sum()}")
+    print(f"Некорректные решения (0): {(df['label'] == 0).sum()}")
+
+    df["label"].value_counts().plot(kind="bar")
+    plt.title("Распределение классов")
+    plt.xlabel("Класс")
+    plt.ylabel("Количество")
+    plt.show()
+
+
+def train_model_v1(df):
+    print("\n=== ОБУЧЕНИЕ MODEL V1 (train / test) ===")
+
+    X = df["input"]
     y = df["label"]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -30,22 +67,33 @@ def train_model_v1():
         ("clf", LogisticRegression(max_iter=1000))
     ])
 
+    start = time.time()
     model.fit(X_train, y_train)
+    train_time = time.time() - start
 
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
 
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(model, MODEL_PATH_V1)
+    print(f"Accuracy (V1): {acc:.3f}")
+    print(f"Время обучения: {train_time:.2f} сек")
 
-    print(f"MODEL V1 SAVED → {MODEL_PATH_V1}, accuracy={acc:.3f}")
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.title("Матрица ошибок (Model V1)")
+    plt.show()
+
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    joblib.dump(model, MODEL_V1_PATH)
+    print(f"Модель сохранена: {MODEL_V1_PATH}")
+
     return acc
 
 
-def train_model_v2():
-    df = pd.read_csv(DATA_PATH)
+def train_model_v2(df):
+    print("\n=== ОБУЧЕНИЕ MODEL V2 (весь датасет) ===")
 
-    X = df["solution"]
+    X = df["input"]
     y = df["label"]
 
     model = Pipeline([
@@ -53,12 +101,37 @@ def train_model_v2():
         ("clf", LogisticRegression(max_iter=2000))
     ])
 
+    start = time.time()
     model.fit(X, y)
+    train_time = time.time() - start
 
     acc = model.score(X, y)
 
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(model, MODEL_PATH_V2)
+    print(f"Accuracy (V2): {acc:.3f}")
+    print(f"Время обучения: {train_time:.2f} сек")
 
-    print(f"MODEL V2 SAVED → {MODEL_PATH_V2}, accuracy={acc:.3f}")
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    joblib.dump(model, MODEL_V2_PATH)
+    print(f"Модель сохранена: {MODEL_V2_PATH}")
+
     return acc
+
+
+def train_all_models():
+    print("=== ЗАПУСК ML-ОБУЧЕНИЯ ===")
+
+    df = load_dataset()
+    analyze_dataset(df)
+
+    acc_v1 = train_model_v1(df)
+    acc_v2 = train_model_v2(df)
+
+    print("\n=== ИТОГ ===")
+    print(f"Model V1 accuracy: {acc_v1:.3f}")
+    print(f"Model V2 accuracy: {acc_v2:.3f}")
+
+    print("\nML-обучение завершено")
+
+
+if __name__ == "__main__":
+    train_all_models()
