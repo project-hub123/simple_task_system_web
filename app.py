@@ -10,9 +10,10 @@ from flask_login import (
 )
 
 from openai import OpenAI
-from ml_model import (
+
+# ✅ ИМПОРТ (ml — пакет)
+from ml.ml_model import (
     load_local_model,
-    retrain_model,
     predict_local_feedback,
     evaluate_model,
     get_model_stats
@@ -86,7 +87,12 @@ def get_system_stats() -> Dict[str, int]:
 
 # ================= ML =================
 
-local_model = load_local_model()
+# ✅ ЗАЩИТА ОТ ПАДЕНИЯ НА RENDER
+try:
+    local_model = load_local_model()
+except Exception as e:
+    local_model = None
+    print(f"ML model not loaded: {e}")
 
 # ================= OPENAI =================
 
@@ -139,8 +145,10 @@ def index():
             solution = request.form.get("solution")
             use_local = request.form.get("use_local_model") == "on"
 
-            if use_local:
+            if use_local and local_model:
                 feedback = predict_local_feedback(local_model, task, solution)
+            elif use_local:
+                feedback = "Локальная модель недоступна"
             else:
                 feedback, error = generate_task()
 
