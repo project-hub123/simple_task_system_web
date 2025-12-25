@@ -1,7 +1,7 @@
 import csv
 import random
 import os
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 # ============================================================
 # НАСТРОЙКИ
@@ -14,7 +14,7 @@ TASKS_CSV_PATH = os.path.join(BASE_DIR, "..", "data", "tasks_300.csv")
 # ВНУТРЕННЕЕ ХРАНИЛИЩЕ
 # ============================================================
 
-_tasks_cache: List[Dict[str, str]] = []
+_tasks_cache: List[str] = []
 _last_task: Optional[str] = None
 
 # ============================================================
@@ -31,34 +31,17 @@ def _load_tasks_from_csv() -> None:
         raise RuntimeError(f"Файл не найден: {TASKS_CSV_PATH}")
 
     with open(TASKS_CSV_PATH, encoding="utf-8-sig") as f:
-        sample = f.read(1024)
-        f.seek(0)
+        reader = csv.reader(f)
 
-        # автоопределение разделителя
-        delimiter = ";" if ";" in sample else ","
+        for row in reader:
+            if not row:
+                continue
 
-        reader = csv.DictReader(f, delimiter=delimiter)
+            # Берём ВСЮ строку как одно задание
+            task = ",".join(cell.strip() for cell in row).strip()
 
-        if not reader.fieldnames:
-            raise RuntimeError("CSV-файл пуст или повреждён")
-
-        # ищем колонку с заданием
-        task_field = None
-        for name in reader.fieldnames:
-            if name.strip().lower() in ("task", "задание"):
-                task_field = name
-                break
-
-        if not task_field:
-            raise RuntimeError(
-                f"В CSV нет колонки 'task'. Найдено: {reader.fieldnames}"
-            )
-
-        _tasks_cache = [
-            {"task": row[task_field].strip()}
-            for row in reader
-            if row.get(task_field) and row[task_field].strip()
-        ]
+            if task:
+                _tasks_cache.append(task)
 
     if not _tasks_cache:
         raise RuntimeError("CSV-файл с заданиями пуст")
@@ -75,11 +58,11 @@ def generate_task() -> str:
     available = _tasks_cache
 
     if _last_task:
-        filtered = [t for t in _tasks_cache if t["task"] != _last_task]
+        filtered = [t for t in _tasks_cache if t != _last_task]
         if filtered:
             available = filtered
 
-    task = random.choice(available)["task"]
+    task = random.choice(available)
     _last_task = task
 
     return task
