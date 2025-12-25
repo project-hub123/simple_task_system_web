@@ -4,3 +4,5 @@ from .ml_model import (
     evaluate_model,
     get_model_stats
 )
+
+from .task_generator import generate_task
