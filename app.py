@@ -1,4 +1,5 @@
 from ml import generate_task
+
 import os
 import datetime
 from typing import Dict
@@ -103,10 +104,11 @@ def index():
         action = request.form.get("action")
 
         if action == "generate":
-            task = request.form.get("task", "").strip()
+            task = generate_task()
             solution = ""
             feedback = ""
-            log_action(current_user.username, "Задание задано вручную")
+            error = None
+            log_action(current_user.username, "Сгенерировано задание")
 
         elif action == "check":
             task = request.form.get("task", "")
@@ -207,10 +209,7 @@ def admin_panel():
 
     users = User.query.order_by(User.id).all()
 
-    return render_template(
-        "admin.html",
-        users=users
-    )
+    return render_template("admin.html", users=users)
 
 @app.route("/teacher")
 @login_required
