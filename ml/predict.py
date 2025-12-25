@@ -9,7 +9,7 @@ from typing import Optional, Dict
 
 MODEL_PATH = "models/code_checker_model.pkl"
 
-_model = None
+_model = None  # кеш модели
 
 # ============================================================
 # ЗАГРУЗКА МОДЕЛИ
@@ -20,21 +20,22 @@ def load_model():
 
     if _model is None:
         if not os.path.exists(MODEL_PATH):
-            raise RuntimeError("ML-модель не найдена")
+            raise FileNotFoundError("ML-модель не найдена")
 
+        print("[ML] Загружаем pipeline модели")
         _model = joblib.load(MODEL_PATH)
 
     return _model
 
 # ============================================================
-# СТАТИЧЕСКИЙ АНАЛИЗ (ТОЛЬКО СИНТАКСИС)
+# СТАТИЧЕСКИЙ АНАЛИЗ
 # ============================================================
 
 def static_analysis(code: str) -> Dict[str, bool]:
     features = {
         "syntax_ok": True,
-        "uses_loop": False,
-        "uses_condition": False
+        "has_loop": False,
+        "has_if": False
     }
 
     try:
@@ -45,45 +46,43 @@ def static_analysis(code: str) -> Dict[str, bool]:
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.For, ast.While)):
-            features["uses_loop"] = True
-        elif isinstance(node, ast.If):
-            features["uses_condition"] = True
+            features["has_loop"] = True
+        if isinstance(node, ast.If):
+            features["has_if"] = True
 
     return features
 
 # ============================================================
-# ОСНОВНАЯ ПРОВЕРКА (ML РЕШАЕТ ВСЁ)
+# ОСНОВНАЯ ПРОВЕРКА
 # ============================================================
 
 def predict(solution_text: str, task_text: Optional[str] = "") -> str:
-    if not solution_text or not solution_text.strip():
+    if not solution_text.strip():
         return "❌ Решение пустое."
 
-    # ---------- СИНТАКСИС ----------
     features = static_analysis(solution_text)
 
     if not features["syntax_ok"]:
         return "❌ Синтаксическая ошибка в коде."
 
-    feedback = []
-    feedback.append("✅ Синтаксический анализ выполнен успешно.")
+    model = load_model()
 
-    if features["uses_loop"]:
-        feedback.append("✔ Используются циклы.")
-    if features["uses_condition"]:
-        feedback.append("✔ Используются условные конструкции.")
+    # ВАЖНО: ровно как при обучении
+    text = f"{task_text}\n{solution_text}"
 
-    # ---------- ML (ОБЯЗАТЕЛЬНО) ----------
-    model = load_model()   # если модель не загрузится — это ошибка разработки
-    ml_input = f"{task_text}\n{solution_text}"
-    prediction = int(model.predict([ml_input])[0])
+    try:
+        prediction = int(model.predict([text])[0])
+    except Exception as e:
+        return f"❌ Ошибка проверки: {e}"
 
-    feedback.append("")
-    feedback.append("📊 Результат проверки:")
-
+    # ---------- РЕЗУЛЬТАТ ----------
     if prediction == 1:
-        feedback.append("✅ Решение верное.")
+        return (
+            "✅ Решение корректное.\n"
+            "Код соответствует условию задания."
+        )
     else:
-        feedback.append("❌ Решение неверное.")
-
-    return "\n".join(feedback)
+        return (
+            "❌ Решение некорректное.\n"
+            "Обнаружены логические ошибки."
+        )
