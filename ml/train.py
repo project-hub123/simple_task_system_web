@@ -49,7 +49,7 @@ def load_dataset() -> pd.DataFrame:
     if not os.path.exists(DATASET_PATH):
         raise FileNotFoundError("Датасет не найден")
 
-    # ВАЖНО: безопасное чтение CSV с кодом Python
+    # попытка с ;
     df = pd.read_csv(
         DATASET_PATH,
         sep=";",
@@ -58,16 +58,68 @@ def load_dataset() -> pd.DataFrame:
         on_bad_lines="skip"
     )
 
+    # если всё в одной колонке — пробуем ,
+    if len(df.columns) == 1 and "," in df.columns[0]:
+        log("Обнаружен CSV с разделителем ','")
+        df = pd.read_csv(
+            DATASET_PATH,
+            sep=",",
+            engine="python",
+            encoding="utf-8",
+            on_bad_lines="skip"
+        )
+
     log(f"Колонки в датасете: {list(df.columns)}")
+
+    # нормализация имён
+    rename_map = {
+        "task": "task_text",
+        "solution": "solution_code",
+        "code": "solution_code"
+    }
+    df.rename(columns=rename_map, inplace=True)
 
     required = {"task_text", "solution_code", "label"}
     if not required.issubset(df.columns):
-        raise ValueError("Некорректная структура датасета")
+        raise ValueError(
+            f"Некорректная структура датасета: {list(df.columns)}"
+        )
 
     df = df.dropna(subset=list(required))
+
+    # ===============================
+    # НОРМАЛИЗАЦИЯ МЕТОК
+    # ===============================
+    label_map = {
+        "корректно": 1,
+        "правильно": 1,
+        "верно": 1,
+        "1": 1,
+        1: 1,
+
+        "некорректно": 0,
+        "неверно": 0,
+        "ошибка": 0,
+        "0": 0,
+        0: 0
+    }
+
+    df["label"] = (
+        df["label"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .map(label_map)
+    )
+
+    df = df.dropna(subset=["label"])
     df["label"] = df["label"].astype(int)
 
-    df["input"] = df["task_text"] + "\n" + df["solution_code"]
+    df["input"] = (
+        df["task_text"].astype(str)
+        + "\n"
+        + df["solution_code"].astype(str)
+    )
 
     log(f"Всего записей: {len(df)}")
     log(f"Корректных: {(df['label'] == 1).sum()}")
