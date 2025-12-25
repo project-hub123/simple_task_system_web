@@ -1,6 +1,6 @@
 import csv
 import random
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 # ============================================================
 # НАСТРОЙКИ
@@ -14,7 +14,7 @@ DELIMITER = ";"
 # ============================================================
 
 _tasks_cache: List[Dict[str, str]] = []
-_last_task_id: str | None = None
+_last_task_id: Optional[str] = None
 
 # ============================================================
 # ЗАГРУЗКА ЗАДАНИЙ ИЗ CSV
@@ -23,18 +23,28 @@ _last_task_id: str | None = None
 def _load_tasks_from_csv() -> None:
     """
     Загружает задания из CSV-файла в память.
-    CSV формат:
+    Формат CSV:
     id ; task
     """
     global _tasks_cache
 
     if _tasks_cache:
-        return  # уже загружены
+        return
 
     try:
         with open(TASKS_CSV_PATH, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=DELIMITER)
-            _tasks_cache = [row for row in reader if row.get("task")]
+
+            if "task" not in reader.fieldnames:
+                raise RuntimeError(
+                    "В CSV отсутствует колонка 'task'"
+                )
+
+            _tasks_cache = [
+                row for row in reader
+                if row.get("task") and row["task"].strip()
+            ]
+
     except FileNotFoundError:
         raise RuntimeError(
             f"Файл с заданиями не найден: {TASKS_CSV_PATH}"
@@ -59,14 +69,18 @@ def generate_task() -> str:
 
     available_tasks = _tasks_cache
 
-    if _last_task_id is not None:
+    # если есть id — не повторяем подряд
+    if _last_task_id is not None and "id" in _tasks_cache[0]:
         filtered = [
-            t for t in _tasks_cache if t["id"] != _last_task_id
+            t for t in _tasks_cache
+            if t.get("id") != _last_task_id
         ]
         if filtered:
             available_tasks = filtered
 
     task = random.choice(available_tasks)
-    _last_task_id = task["id"]
+
+    if "id" in task:
+        _last_task_id = task.get("id")
 
     return task["task"]
