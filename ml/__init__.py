@@ -1,9 +1,3 @@
-from .ml_model import (
-    load_local_model,
-    predict_local_feedback,
-    evaluate_model,
-    get_model_stats
-)
-
+from .predict import predict
 from .task_generator import generate_task
-
+from .core import get_model_stats
