@@ -11,12 +11,7 @@ from flask_login import (
     logout_user, current_user, UserMixin
 )
 
-from ml.ml_model import (
-    load_local_model,
-    predict_local_feedback,
-    evaluate_model,
-    get_model_stats
-)
+from ml.ml_model import predict_local_feedback
 
 # ================= НАСТРОЙКИ =================
 
@@ -83,13 +78,6 @@ def get_system_stats() -> Dict[str, int]:
         "logs": AuditLog.query.count()
     }
 
-# ================= ML =================
-
-try:
-    local_model = load_local_model()
-except Exception:
-    local_model = None
-
 # ================= РОУТЫ =================
 
 @app.route("/", methods=["GET", "POST"])
@@ -103,6 +91,7 @@ def index():
     if request.method == "POST":
         action = request.form.get("action")
 
+        # ===== ГЕНЕРАЦИЯ ЗАДАНИЯ =====
         if action == "generate":
             task = generate_task()
             solution = ""
@@ -110,6 +99,7 @@ def index():
             error = None
             log_action(current_user.username, "Сгенерировано задание")
 
+        # ===== ПРОВЕРКА РЕШЕНИЯ =====
         elif action == "check":
             task = request.form.get("task", "")
             solution = request.form.get("solution", "")
@@ -123,23 +113,18 @@ def index():
                 feedback = ""
 
             else:
-                if local_model is None:
-                    error = "Локальная модель недоступна."
-                    feedback = ""
-                else:
-                    feedback = predict_local_feedback(local_model, task, solution)
-                    error = None
+                feedback = predict_local_feedback(None, task, solution)
+                error = None
 
-                if not error and feedback:
-                    db.session.add(Report(
-                        user_id=current_user.id,
-                        username=current_user.username,
-                        task=task,
-                        solution=solution,
-                        feedback=feedback
-                    ))
-                    db.session.commit()
-                    log_action(current_user.username, "Проверено решение")
+                db.session.add(Report(
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    task=task,
+                    solution=solution,
+                    feedback=feedback
+                ))
+                db.session.commit()
+                log_action(current_user.username, "Проверено решение")
 
     return render_template(
         "index.html",
@@ -208,7 +193,6 @@ def admin_panel():
         return redirect(url_for("index"))
 
     users = User.query.order_by(User.id).all()
-
     return render_template("admin.html", users=users)
 
 @app.route("/teacher")
