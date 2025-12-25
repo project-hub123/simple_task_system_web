@@ -18,43 +18,49 @@ TRAIN_DATASET_PATH = "data/python_tasks_dataset.csv"
 # ============================================================
 
 def load_local_model():
-    """
-    Загружает обученную ML-модель проверки решений.
-    Используется ТОЛЬКО после обучения (train.py).
-    """
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError("ML-модель не найдена. Сначала выполните обучение.")
-
     return joblib.load(MODEL_PATH)
 
 # ============================================================
-# ГЕНЕРАЦИЯ ЗАДАНИЯ (ИЗ CSV)
+# ГЕНЕРАЦИЯ ЗАДАНИЯ (CSV)
 # ============================================================
 
+_last_task_id = None
+
 def generate_task() -> str:
-    """
-    Возвращает случайное учебное задание из CSV-файла.
-    """
+    global _last_task_id
+
     if not os.path.exists(TASKS_PATH):
         raise FileNotFoundError("Файл с заданиями не найден.")
 
     df = pd.read_csv(TASKS_PATH)
 
     if "task" not in df.columns:
-        raise ValueError("В файле заданий нет колонки 'task'.")
+        raise ValueError("В CSV отсутствует колонка 'task'.")
 
-    task = random.choice(df["task"].dropna().tolist())
-    return str(task)
+    df = df.dropna(subset=["task"])
+
+    if df.empty:
+        raise RuntimeError("Файл заданий пуст.")
+
+    tasks = df.to_dict(orient="records")
+
+    if _last_task_id is not None:
+        filtered = [t for t in tasks if t.get("id") != _last_task_id]
+        if filtered:
+            tasks = filtered
+
+    task = random.choice(tasks)
+    _last_task_id = task.get("id")
+
+    return str(task["task"])
 
 # ============================================================
 # СТАТИЧЕСКИЙ АНАЛИЗ PYTHON-КОДА
 # ============================================================
 
 def static_code_analysis(code: str) -> Tuple[bool, Dict[str, bool], str]:
-    """
-    Выполняет синтаксический и структурный анализ Python-кода.
-    """
-
     features = {
         "has_function": False,
         "has_return": False,
@@ -83,24 +89,13 @@ def static_code_analysis(code: str) -> Tuple[bool, Dict[str, bool], str]:
     return True, features, ""
 
 # ============================================================
-# ПРОВЕРКА РЕШЕНИЯ (ОСНОВНАЯ ЛОГИКА)
+# ПРОВЕРКА РЕШЕНИЯ
 # ============================================================
 
-def predict_local_feedback(
-    model,
-    task_text: str,
-    solution_code: str
-) -> str:
-    """
-    Проверка решения:
-    1) AST-анализ
-    2) ML-классификация корректности
-    """
-
+def predict_local_feedback(model, task_text: str, solution_code: str) -> str:
     if not solution_code.strip():
         return "❌ Решение пустое. Введите программный код."
 
-    # ---------- СИНТАКСИС ----------
     syntax_ok, features, error_msg = static_code_analysis(solution_code)
 
     if not syntax_ok:
@@ -109,31 +104,17 @@ def predict_local_feedback(
     feedback = []
     feedback.append("✅ Синтаксический анализ пройден.")
 
-    # ---------- СТРУКТУРА ----------
     feedback.append("📐 Анализ структуры решения:")
-
-    feedback.append(
-        "✔ Функция определена."
-        if features["has_function"]
-        else "❌ Функция не определена."
-    )
-
-    feedback.append(
-        "✔ Используется return."
-        if features["has_return"]
-        else "❌ Отсутствует return."
-    )
+    feedback.append("✔ Объявлена функция." if features["has_function"] else "❌ Функция не объявлена.")
+    feedback.append("✔ Используется return." if features["has_return"] else "❌ Отсутствует return.")
 
     if features["uses_loop"]:
         feedback.append("ℹ Используются циклы.")
-
     if features["uses_condition"]:
         feedback.append("ℹ Используются условия.")
-
     if features["uses_import"]:
         feedback.append("ℹ Используются импорты.")
 
-    # ---------- ML-ПРОВЕРКА ----------
     feedback.append("")
     feedback.append("🧠 Результат машинного обучения:")
 
@@ -153,14 +134,10 @@ def predict_local_feedback(
     return "\n".join(feedback)
 
 # ============================================================
-# ОЦЕНКА МОДЕЛИ (ДЛЯ АДМИНКИ)
+# ОЦЕНКА МОДЕЛИ
 # ============================================================
 
 def evaluate_model(model) -> Dict[str, float]:
-    """
-    Оценивает точность модели на обучающем датасете.
-    """
-
     if not os.path.exists(TRAIN_DATASET_PATH):
         raise FileNotFoundError("Датасет для оценки не найден.")
 
@@ -187,29 +164,15 @@ def evaluate_model(model) -> Dict[str, float]:
 # ============================================================
 
 def get_model_stats() -> Dict[str, int]:
-    """
-    Возвращает статистику по датасету и модели.
-    """
-
     trained = os.path.exists(MODEL_PATH)
 
     if not os.path.exists(TRAIN_DATASET_PATH):
-        return {
-            "trained": trained,
-            "records": 0,
-            "positive": 0,
-            "negative": 0
-        }
+        return {"trained": trained, "records": 0, "positive": 0, "negative": 0}
 
     df = pd.read_csv(TRAIN_DATASET_PATH)
 
     if "label" not in df.columns:
-        return {
-            "trained": trained,
-            "records": len(df),
-            "positive": 0,
-            "negative": 0
-        }
+        return {"trained": trained, "records": len(df), "positive": 0, "negative": 0}
 
     return {
         "trained": trained,
