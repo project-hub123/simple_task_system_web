@@ -6,7 +6,7 @@ import pandas as pd
 from typing import Dict, Tuple
 
 # ============================================================
-# ПУТИ И ФАЙЛЫ
+# ПУТИ
 # ============================================================
 
 MODEL_PATH = "models/code_checker_model.pkl"
@@ -14,59 +14,73 @@ TASKS_PATH = "data/tasks_300.csv"
 TRAIN_DATASET_PATH = "data/python_tasks_dataset.csv"
 
 # ============================================================
-# ЗАГРУЗКА ML-МОДЕЛИ
+# КЕШ МОДЕЛИ (КРИТИЧНО!)
 # ============================================================
+
+_model = None
+
 
 def load_local_model():
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError("ML-модель не найдена. Сначала выполните обучение.")
-    return joblib.load(MODEL_PATH)
+    """
+    Загружает ТОЛЬКО сохранённый Pipeline.
+    Никаких vectorizer / fit / transform здесь быть НЕ МОЖЕТ.
+    """
+    global _model
+
+    if _model is None:
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError("ML-модель не найдена. Сначала выполните обучение.")
+
+        print("[ML] Загружена обученная модель")
+        _model = joblib.load(MODEL_PATH)
+
+    return _model
+
 
 # ============================================================
-# ГЕНЕРАЦИЯ ЗАДАНИЯ (CSV)
+# ГЕНЕРАЦИЯ ЗАДАНИЯ
 # ============================================================
 
-_last_task_id = None
+_last_task_index = None
+
 
 def generate_task() -> str:
-    global _last_task_id
+    global _last_task_index
 
     if not os.path.exists(TASKS_PATH):
-        raise FileNotFoundError("Файл с заданиями не найден.")
+        raise FileNotFoundError("Файл с заданиями не найден")
 
-    df = pd.read_csv(TASKS_PATH)
+    # важно: delimiter=';' если у тебя CSV из Excel
+    df = pd.read_csv(TASKS_PATH, sep=";")
 
     if "task" not in df.columns:
-        raise ValueError("В CSV отсутствует колонка 'task'.")
+        raise ValueError(f"В CSV нет колонки 'task'. Найдено: {list(df.columns)}")
 
     df = df.dropna(subset=["task"])
 
     if df.empty:
-        raise RuntimeError("Файл заданий пуст.")
+        raise RuntimeError("Файл заданий пуст")
 
-    tasks = df.to_dict(orient="records")
+    indices = list(df.index)
 
-    if _last_task_id is not None:
-        filtered = [t for t in tasks if t.get("id") != _last_task_id]
-        if filtered:
-            tasks = filtered
+    if _last_task_index in indices and len(indices) > 1:
+        indices.remove(_last_task_index)
 
-    task = random.choice(tasks)
-    _last_task_id = task.get("id")
+    idx = random.choice(indices)
+    _last_task_index = idx
 
-    return str(task["task"])
+    return str(df.loc[idx, "task"])
+
 
 # ============================================================
-# СТАТИЧЕСКИЙ АНАЛИЗ PYTHON-КОДА
+# СТАТИЧЕСКИЙ АНАЛИЗ
 # ============================================================
 
 def static_code_analysis(code: str) -> Tuple[bool, Dict[str, bool], str]:
     features = {
-        "has_function": False,
-        "has_return": False,
-        "uses_import": False,
-        "uses_loop": False,
-        "uses_condition": False
+        "has_loop": False,
+        "has_if": False,
+        "has_function": False
     }
 
     try:
@@ -75,92 +89,47 @@ def static_code_analysis(code: str) -> Tuple[bool, Dict[str, bool], str]:
         return False, features, f"Синтаксическая ошибка: {e}"
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            features["has_function"] = True
-        elif isinstance(node, ast.Return):
-            features["has_return"] = True
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            features["uses_import"] = True
-        elif isinstance(node, (ast.For, ast.While)):
-            features["uses_loop"] = True
+        if isinstance(node, (ast.For, ast.While)):
+            features["has_loop"] = True
         elif isinstance(node, ast.If):
-            features["uses_condition"] = True
+            features["has_if"] = True
+        elif isinstance(node, ast.FunctionDef):
+            features["has_function"] = True
 
     return True, features, ""
 
+
 # ============================================================
-# ПРОВЕРКА РЕШЕНИЯ
+# ПРОВЕРКА РЕШЕНИЯ (ГЛАВНАЯ ФУНКЦИЯ)
 # ============================================================
 
-def predict_local_feedback(model, task_text: str, solution_code: str) -> str:
+def predict(task_text: str, solution_code: str) -> str:
     if not solution_code.strip():
-        return "❌ Решение пустое. Введите программный код."
+        return "❌ Решение пустое."
 
-    syntax_ok, features, error_msg = static_code_analysis(solution_code)
+    # 1. Синтаксис
+    ok, features, error = static_code_analysis(solution_code)
+    if not ok:
+        return f"❌ {error}"
 
-    if not syntax_ok:
-        return f"❌ {error_msg}"
-
-    feedback = []
-    feedback.append("✅ Синтаксический анализ пройден.")
-
-    feedback.append("📐 Анализ структуры решения:")
-    feedback.append("✔ Объявлена функция." if features["has_function"] else "❌ Функция не объявлена.")
-    feedback.append("✔ Используется return." if features["has_return"] else "❌ Отсутствует return.")
-
-    if features["uses_loop"]:
-        feedback.append("ℹ Используются циклы.")
-    if features["uses_condition"]:
-        feedback.append("ℹ Используются условия.")
-    if features["uses_import"]:
-        feedback.append("ℹ Используются импорты.")
-
-    feedback.append("")
-    feedback.append("🧠 Результат машинного обучения:")
+    # 2. ML (ТОЛЬКО PIPELINE!)
+    model = load_local_model()
+    ml_input = f"{task_text}\n{solution_code}"
 
     try:
-        ml_input = task_text + "\n" + solution_code
         prediction = int(model.predict([ml_input])[0])
     except Exception as e:
-        return f"❌ Ошибка ML-модели: {e}"
+        return f"❌ Ошибка проверки: {e}"
 
+    # 3. Ответ
     if prediction == 1:
-        feedback.append("✅ Решение признано корректным.")
-        feedback.append("📌 Итог: решение соответствует заданию.")
+        return "✅ Решение корректное."
     else:
-        feedback.append("❌ Решение признано некорректным.")
-        feedback.append("📌 Итог: требуется доработка решения.")
+        return "❌ Решение некорректное."
 
-    return "\n".join(feedback)
 
 # ============================================================
-# ОЦЕНКА МОДЕЛИ
-# ============================================================
-
-def evaluate_model(model) -> Dict[str, float]:
-    if not os.path.exists(TRAIN_DATASET_PATH):
-        raise FileNotFoundError("Датасет для оценки не найден.")
-
-    df = pd.read_csv(TRAIN_DATASET_PATH)
-
-    required = {"task_text", "solution_code", "label"}
-    if not required.issubset(df.columns):
-        raise ValueError("Некорректная структура датасета.")
-
-    df["input"] = df["task_text"] + "\n" + df["solution_code"]
-
-    y_true = df["label"].astype(int)
-    y_pred = model.predict(df["input"])
-
-    accuracy = float((y_true == y_pred).mean())
-
-    return {
-        "accuracy": round(accuracy, 3),
-        "records": int(len(df))
-    }
-
-# ============================================================
-# СТАТИСТИКА
+# СТАТИСТИКА МОДЕЛИ (ДЛЯ АДМИНКИ)
 # ============================================================
 
 def get_model_stats() -> Dict[str, int]:
