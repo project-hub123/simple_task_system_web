@@ -1,9 +1,9 @@
-from ml.train import train_all_models
+from ml.train import main as train_main
 
 
 def main():
     print("=== START ML SYSTEM ===")
-    train_all_models()
+    train_main()
     print("=== END ML SYSTEM ===")
 
 

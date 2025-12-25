@@ -11,7 +11,8 @@ from flask_login import (
     logout_user, current_user, UserMixin
 )
 
-from ml.ml_model import predict_local_feedback
+# ВАЖНО: импорт именно predict
+from ml.predict import predict
 
 # ================= НАСТРОЙКИ =================
 
@@ -113,18 +114,24 @@ def index():
                 feedback = ""
 
             else:
-                feedback = predict_local_feedback(None, task, solution)
-                error = None
+                try:
+                    feedback = predict(solution_text=solution, task_text=task)
+                    error = None
 
-                db.session.add(Report(
-                    user_id=current_user.id,
-                    username=current_user.username,
-                    task=task,
-                    solution=solution,
-                    feedback=feedback
-                ))
-                db.session.commit()
-                log_action(current_user.username, "Проверено решение")
+                    db.session.add(Report(
+                        user_id=current_user.id,
+                        username=current_user.username,
+                        task=task,
+                        solution=solution,
+                        feedback=feedback
+                    ))
+                    db.session.commit()
+
+                    log_action(current_user.username, "Проверено решение")
+
+                except Exception as e:
+                    error = f"Ошибка проверки: {e}"
+                    feedback = ""
 
     return render_template(
         "index.html",
@@ -167,6 +174,7 @@ def register():
             role=role
         ))
         db.session.commit()
+
         log_action(username, "Регистрация пользователя")
         flash("Регистрация успешна", "success")
         return redirect(url_for("login"))
@@ -193,7 +201,8 @@ def admin_panel():
         return redirect(url_for("index"))
 
     users = User.query.order_by(User.id).all()
-    return render_template("admin.html", users=users)
+    stats = get_system_stats()
+    return render_template("admin.html", users=users, stats=stats)
 
 @app.route("/teacher")
 @login_required

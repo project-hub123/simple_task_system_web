@@ -1,6 +1,7 @@
 import os
 import ast
 import joblib
+import numpy as np
 from typing import Optional, Dict
 
 # ============================================================
@@ -117,15 +118,25 @@ def predict(solution_text: str, task_text: Optional[str] = "") -> str:
     # ---------- ML-анализ ----------
     try:
         model = load_model()
-        ml_input = f"{task_text} {solution_text}"
+
+        # ВАЖНО: формируем вход так же, как при обучении
+        ml_input = f"{task_text}\n{solution_text}"
+
         prediction = model.predict([ml_input])[0]
+
+        # защита от numpy типов и fallback-модели
+        if isinstance(prediction, (np.integer, int)):
+            prediction = int(prediction)
+        else:
+            prediction = int(prediction)
+
     except Exception as e:
         return f"❌ Ошибка при применении ML-модели: {e}"
 
     feedback.append("")
     feedback.append("📊 Результат машинного анализа:")
 
-    if int(prediction) == 1:
+    if prediction == 1:
         feedback.append("✅ Решение классифицировано как корректное.")
         feedback.append("📌 Итог: код соответствует требованиям задания.")
     else:
