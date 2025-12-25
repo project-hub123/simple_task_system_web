@@ -1,41 +1,72 @@
+import csv
 import random
+from typing import List, Dict
 
-TASKS = [
-    {
-        "title": "Анализ CSV-файла с использованием pandas",
-        "text": """Напишите программу на Python, которая:
+# ============================================================
+# НАСТРОЙКИ
+# ============================================================
 
-1. Считывает данные из CSV-файла с помощью pandas.
-2. Выводит первые 5 строк таблицы.
-3. Вычисляет среднее значение числового столбца.
-4. Строит простой график на основе данных.
+TASKS_CSV_PATH = "data/tasks_300.csv"
+DELIMITER = ";"
 
-Разрешено использовать библиотеки pandas и matplotlib."""
-    },
-    {
-        "title": "Группировка данных и агрегирование",
-        "text": """Напишите программу на Python, которая:
+# ============================================================
+# ВНУТРЕННЕЕ ХРАНИЛИЩЕ
+# ============================================================
 
-1. Загружает CSV-файл с данными.
-2. Группирует данные по одному из столбцов.
-3. Вычисляет сумму или среднее значение для каждой группы.
-4. Выводит результат в консоль.
+_tasks_cache: List[Dict[str, str]] = []
+_last_task_id: str | None = None
 
-Используйте библиотеку pandas."""
-    },
-    {
-        "title": "Работа с пропущенными значениями",
-        "text": """Напишите программу на Python, которая:
+# ============================================================
+# ЗАГРУЗКА ЗАДАНИЙ ИЗ CSV
+# ============================================================
 
-1. Считывает CSV-файл.
-2. Определяет количество пропущенных значений.
-3. Заполняет пропуски значением 0 или средним.
-4. Выводит обновлённый DataFrame.
+def _load_tasks_from_csv() -> None:
+    """
+    Загружает задания из CSV-файла в память.
+    CSV формат:
+    id ; task
+    """
+    global _tasks_cache
 
-Используйте pandas."""
-    }
-]
+    if _tasks_cache:
+        return  # уже загружены
 
-def generate_task():
-    task = random.choice(TASKS)
-    return f"Задание: {task['title']}\n\n{task['text']}"
+    try:
+        with open(TASKS_CSV_PATH, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=DELIMITER)
+            _tasks_cache = [row for row in reader if row.get("task")]
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"Файл с заданиями не найден: {TASKS_CSV_PATH}"
+        )
+
+    if not _tasks_cache:
+        raise RuntimeError("CSV-файл с заданиями пуст")
+
+# ============================================================
+# ГЕНЕРАЦИЯ ЗАДАНИЯ
+# ============================================================
+
+def generate_task() -> str:
+    """
+    Возвращает случайное учебное задание из CSV.
+    Гарантирует, что подряд не вернётся одно и то же задание.
+    """
+
+    global _last_task_id
+
+    _load_tasks_from_csv()
+
+    available_tasks = _tasks_cache
+
+    if _last_task_id is not None:
+        filtered = [
+            t for t in _tasks_cache if t["id"] != _last_task_id
+        ]
+        if filtered:
+            available_tasks = filtered
+
+    task = random.choice(available_tasks)
+    _last_task_id = task["id"]
+
+    return task["task"]
