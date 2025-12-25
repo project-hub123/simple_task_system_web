@@ -49,7 +49,16 @@ def load_dataset() -> pd.DataFrame:
     if not os.path.exists(DATASET_PATH):
         raise FileNotFoundError("Датасет не найден")
 
-    df = pd.read_csv(DATASET_PATH)
+    # ВАЖНО: безопасное чтение CSV с кодом Python
+    df = pd.read_csv(
+        DATASET_PATH,
+        sep=";",
+        engine="python",
+        encoding="utf-8",
+        on_bad_lines="skip"
+    )
+
+    log(f"Колонки в датасете: {list(df.columns)}")
 
     required = {"task_text", "solution_code", "label"}
     if not required.issubset(df.columns):
