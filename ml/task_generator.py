@@ -1,12 +1,14 @@
 import csv
 import random
+import os
 from typing import List, Dict, Optional
 
 # ============================================================
 # НАСТРОЙКИ
 # ============================================================
 
-TASKS_CSV_PATH = "data/tasks_300.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TASKS_CSV_PATH = os.path.join(BASE_DIR, "..", "data", "tasks_300.csv")
 DELIMITER = ";"
 
 # ============================================================
@@ -21,34 +23,28 @@ _last_task_id: Optional[str] = None
 # ============================================================
 
 def _load_tasks_from_csv() -> None:
-    """
-    Загружает задания из CSV-файла в память.
-    Формат CSV:
-    id ; task
-    """
     global _tasks_cache
 
     if _tasks_cache:
         return
 
-    try:
-        with open(TASKS_CSV_PATH, encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter=DELIMITER)
-
-            if "task" not in reader.fieldnames:
-                raise RuntimeError(
-                    "В CSV отсутствует колонка 'task'"
-                )
-
-            _tasks_cache = [
-                row for row in reader
-                if row.get("task") and row["task"].strip()
-            ]
-
-    except FileNotFoundError:
+    if not os.path.exists(TASKS_CSV_PATH):
         raise RuntimeError(
             f"Файл с заданиями не найден: {TASKS_CSV_PATH}"
         )
+
+    with open(TASKS_CSV_PATH, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=DELIMITER)
+
+        if not reader.fieldnames or "task" not in reader.fieldnames:
+            raise RuntimeError(
+                "CSV-файл заданий должен содержать колонку 'task'"
+            )
+
+        _tasks_cache = [
+            row for row in reader
+            if row.get("task") and row["task"].strip()
+        ]
 
     if not _tasks_cache:
         raise RuntimeError("CSV-файл с заданиями пуст")
@@ -58,18 +54,12 @@ def _load_tasks_from_csv() -> None:
 # ============================================================
 
 def generate_task() -> str:
-    """
-    Возвращает случайное учебное задание из CSV.
-    Гарантирует, что подряд не вернётся одно и то же задание.
-    """
-
     global _last_task_id
 
     _load_tasks_from_csv()
 
     available_tasks = _tasks_cache
 
-    # если есть id — не повторяем подряд
     if _last_task_id is not None and "id" in _tasks_cache[0]:
         filtered = [
             t for t in _tasks_cache
