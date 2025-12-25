@@ -9,8 +9,6 @@ from flask_login import (
     logout_user, current_user, UserMixin
 )
 
-from openai import OpenAI
-
 from ml.ml_model import (
     load_local_model,
     predict_local_feedback,
@@ -20,7 +18,6 @@ from ml.ml_model import (
 
 # ================= НАСТРОЙКИ =================
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 FLASK_SECRET = os.getenv("FLASK_SECRET", "secret_123")
 
 app = Flask(__name__)
@@ -88,75 +85,8 @@ def get_system_stats() -> Dict[str, int]:
 
 try:
     local_model = load_local_model()
-except Exception as e:
+except Exception:
     local_model = None
-    print(f"ML model not loaded: {e}")
-
-# ================= OPENAI =================
-
-def generate_task():
-    if not OPENAI_API_KEY:
-        return None, "OPENAI_API_KEY не задан"
-
-    try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
-
-        prompt = (
-            "Сгенерируй учебную задачу по Python строго в следующей структуре:\n\n"
-            "1. Название задачи\n"
-            "2. Описание задачи\n"
-            "3. Входные данные\n"
-            "4. Выходные данные\n"
-            "5. Требования к программе (не менее 5 пунктов)\n"
-            "6. Ограничения\n"
-            "7. Пример входных и выходных данных\n\n"
-            "Задача должна быть уровня ВУЗа, не примитивной."
-        )
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500
-        )
-
-        return response.choices[0].message.content.strip(), None
-
-    except Exception as e:
-        return None, str(e)
-
-def analyze_with_openai(task: str, solution: str):
-    if not OPENAI_API_KEY:
-        return "", "OpenAI недоступен. Используйте локальную модель."
-
-    try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
-
-        prompt = f"""
-Выступай как автоматический проверяющий решений по Python.
-
-=== УСЛОВИЕ ЗАДАЧИ ===
-{task}
-
-=== РЕШЕНИЕ СТУДЕНТА ===
-{solution}
-
-Дай развернутый анализ:
-1. Соответствие условиям задания
-2. Используемые библиотеки
-3. Ошибки и недочеты
-4. Итоговый вывод
-"""
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700
-        )
-
-        return response.choices[0].message.content.strip(), None
-
-    except Exception as e:
-        return "", str(e)
 
 # ================= РОУТЫ =================
 
@@ -172,34 +102,30 @@ def index():
         action = request.form.get("action")
 
         if action == "generate":
-            task, error = generate_task()
+            task = request.form.get("task", "").strip()
             solution = ""
             feedback = ""
-            log_action(current_user.username, "Сгенерировано задание")
+            log_action(current_user.username, "Задание задано вручную")
 
         elif action == "check":
             task = request.form.get("task", "")
             solution = request.form.get("solution", "")
-            use_local = request.form.get("use_local_model") == "on"
 
             if not task.strip():
-                error = "Задание отсутствует. Сначала сгенерируйте задание."
+                error = "Задание отсутствует."
                 feedback = ""
 
             elif not solution.strip():
-                error = "Решение не может быть пустым. Введите текст решения."
+                error = "Решение не может быть пустым."
                 feedback = ""
 
             else:
-                if use_local:
-                    if local_model is None:
-                        error = "Локальная модель недоступна."
-                        feedback = ""
-                    else:
-                        feedback = predict_local_feedback(local_model, task, solution)
-                        error = None
+                if local_model is None:
+                    error = "Локальная модель недоступна."
+                    feedback = ""
                 else:
-                    feedback, error = analyze_with_openai(task, solution)
+                    feedback = predict_local_feedback(local_model, task, solution)
+                    error = None
 
                 if not error and feedback:
                     db.session.add(Report(
