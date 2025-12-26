@@ -1,7 +1,7 @@
 import os
 import ast
 import joblib
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 # ============================================================
 # НАСТРОЙКИ
@@ -9,7 +9,24 @@ from typing import Optional, Dict
 
 MODEL_PATH = "models/code_checker_model.pkl"
 
-_model = None  # кеш модели
+_model = None
+
+# ============================================================
+# НОРМАЛИЗАЦИЯ КОДА (КРИТИЧЕСКИ ВАЖНО)
+# ============================================================
+
+def normalize_code(code: str) -> str:
+    """
+    Убирает скрытые символы, которые ломают ast.parse
+    """
+    return (
+        code
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\u00A0", " ")
+        .replace("\ufeff", "")
+        .strip()
+    )
 
 # ============================================================
 # ЗАГРУЗКА МОДЕЛИ
@@ -22,7 +39,6 @@ def load_model():
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError("ML-модель не найдена")
 
-        print("[ML] Загружаем pipeline модели")
         _model = joblib.load(MODEL_PATH)
 
     return _model
@@ -34,9 +50,13 @@ def load_model():
 def static_analysis(code: str) -> Dict[str, bool]:
     features = {
         "syntax_ok": True,
-        "has_loop": False,
-        "has_if": False
+        "has_function": False,
+        "has_return": False,
+        "uses_loop": False,
+        "uses_condition": False
     }
+
+    code = normalize_code(code)
 
     try:
         tree = ast.parse(code)
@@ -45,44 +65,60 @@ def static_analysis(code: str) -> Dict[str, bool]:
         return features
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.For, ast.While)):
-            features["has_loop"] = True
-        if isinstance(node, ast.If):
-            features["has_if"] = True
+        if isinstance(node, ast.FunctionDef):
+            features["has_function"] = True
+        elif isinstance(node, ast.Return):
+            features["has_return"] = True
+        elif isinstance(node, (ast.For, ast.While)):
+            features["uses_loop"] = True
+        elif isinstance(node, ast.If):
+            features["uses_condition"] = True
 
     return features
 
 # ============================================================
-# ОСНОВНАЯ ПРОВЕРКА
+# ОСНОВНАЯ ПРОВЕРКА РЕШЕНИЯ
 # ============================================================
 
 def predict(solution_text: str, task_text: Optional[str] = "") -> str:
-    if not solution_text.strip():
+    if not solution_text or not solution_text.strip():
         return "❌ Решение пустое."
 
+    solution_text = normalize_code(solution_text)
+    task_text = normalize_code(task_text or "")
+
+    # ---------- AST ----------
     features = static_analysis(solution_text)
 
     if not features["syntax_ok"]:
         return "❌ Синтаксическая ошибка в коде."
 
-    model = load_model()
+    feedback = []
+    feedback.append("✅ Синтаксический анализ выполнен успешно.")
 
-    # ВАЖНО: ровно как при обучении
-    text = f"{task_text}\n{solution_text}"
+    if features["uses_loop"]:
+        feedback.append("✔ Используются циклы.")
+    if features["uses_condition"]:
+        feedback.append("✔ Используются условия.")
+    if features["has_function"]:
+        feedback.append("✔ Объявлена функция.")
+    if features["has_return"]:
+        feedback.append("✔ Используется return.")
 
+    # ---------- ML ----------
     try:
-        prediction = int(model.predict([text])[0])
+        model = load_model()
+        ml_input = task_text + "\n" + solution_text
+        prediction = int(model.predict([ml_input])[0])
     except Exception as e:
-        return f"❌ Ошибка проверки: {e}"
+        return f"❌ Ошибка ML-модели: {e}"
 
-    # ---------- РЕЗУЛЬТАТ ----------
+    feedback.append("")
+    feedback.append("📊 Результат машинного анализа:")
+
     if prediction == 1:
-        return (
-            "✅ Решение корректное.\n"
-            "Код соответствует условию задания."
-        )
+        feedback.append("✅ Решение признано корректным.")
     else:
-        return (
-            "❌ Решение некорректное.\n"
-            "Обнаружены логические ошибки."
-        )
+        feedback.append("❌ Решение признано некорректным.")
+
+    return "\n".join(feedback)
