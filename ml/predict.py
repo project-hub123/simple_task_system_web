@@ -1,32 +1,12 @@
 import os
 import ast
 import joblib
-from typing import Dict, Optional
-
-# ============================================================
-# НАСТРОЙКИ
-# ============================================================
+import numpy as np
 
 MODEL_PATH = "models/code_checker_model.pkl"
 
 _model = None
 
-# ============================================================
-# НОРМАЛИЗАЦИЯ КОДА (КРИТИЧЕСКИ ВАЖНО)
-# ============================================================
-
-def normalize_code(code: str) -> str:
-    """
-    Убирает скрытые символы, которые ломают ast.parse
-    """
-    return (
-        code
-        .replace("\r\n", "\n")
-        .replace("\r", "\n")
-        .replace("\u00A0", " ")
-        .replace("\ufeff", "")
-        .strip()
-    )
 
 # ============================================================
 # ЗАГРУЗКА МОДЕЛИ
@@ -43,82 +23,75 @@ def load_model():
 
     return _model
 
+
 # ============================================================
-# СТАТИЧЕСКИЙ АНАЛИЗ
+# СИНТАКСИЧЕСКИЙ АНАЛИЗ
 # ============================================================
 
-def static_analysis(code: str) -> Dict[str, bool]:
-    features = {
-        "syntax_ok": True,
-        "has_function": False,
-        "has_return": False,
-        "uses_loop": False,
-        "uses_condition": False
-    }
+def static_analysis(code: str):
+    if not isinstance(code, str):
+        return False, "Код не является строкой"
 
-    code = normalize_code(code)
+    if not code.strip():
+        return False, "Код пустой"
 
     try:
-        tree = ast.parse(code)
-    except SyntaxError:
-        features["syntax_ok"] = False
-        return features
+        ast.parse(code)
+    except SyntaxError as e:
+        return False, f"Синтаксическая ошибка: {e}"
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            features["has_function"] = True
-        elif isinstance(node, ast.Return):
-            features["has_return"] = True
-        elif isinstance(node, (ast.For, ast.While)):
-            features["uses_loop"] = True
-        elif isinstance(node, ast.If):
-            features["uses_condition"] = True
+    return True, "OK"
 
-    return features
 
 # ============================================================
-# ОСНОВНАЯ ПРОВЕРКА РЕШЕНИЯ
+# ОСНОВНАЯ ПРОВЕРКА
 # ============================================================
 
-def predict(solution_text: str, task_text: Optional[str] = "") -> str:
-    if not solution_text or not solution_text.strip():
-        return "❌ Решение пустое."
-
-    solution_text = normalize_code(solution_text)
-    task_text = normalize_code(task_text or "")
-
-    # ---------- AST ----------
-    features = static_analysis(solution_text)
-
-    if not features["syntax_ok"]:
-        return "❌ Синтаксическая ошибка в коде."
+def predict(solution_text: str, task_text: str = "") -> str:
+    # --- 1. СИНТАКСИС ---
+    ok, msg = static_analysis(solution_text)
+    if not ok:
+        return f"❌ {msg}"
 
     feedback = []
     feedback.append("✅ Синтаксический анализ выполнен успешно.")
 
-    if features["uses_loop"]:
-        feedback.append("✔ Используются циклы.")
-    if features["uses_condition"]:
-        feedback.append("✔ Используются условия.")
-    if features["has_function"]:
-        feedback.append("✔ Объявлена функция.")
-    if features["has_return"]:
-        feedback.append("✔ Используется return.")
+    # --- 2. СТРУКТУРНЫЙ АНАЛИЗ ---
+    tree = ast.parse(solution_text)
 
-    # ---------- ML ----------
+    has_loop = False
+    has_condition = False
+    has_function = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)):
+            has_loop = True
+        if isinstance(node, ast.If):
+            has_condition = True
+        if isinstance(node, ast.FunctionDef):
+            has_function = True
+
+    feedback.append("📐 Анализ структуры:")
+    feedback.append("✔ Используются циклы." if has_loop else "ℹ Циклы не используются.")
+    feedback.append("✔ Используются условия." if has_condition else "ℹ Условия не используются.")
+    feedback.append("✔ Объявлена функция." if has_function else "ℹ Функция не объявлена.")
+
+    # --- 3. ML ПРОВЕРКА ---
     try:
         model = load_model()
-        ml_input = task_text + "\n" + solution_text
+        ml_input = f"{task_text}\n{solution_text}"
         prediction = int(model.predict([ml_input])[0])
     except Exception as e:
-        return f"❌ Ошибка ML-модели: {e}"
+        feedback.append("")
+        feedback.append(f"⚠ Ошибка ML-модуля: {e}")
+        return "\n".join(feedback)
 
     feedback.append("")
-    feedback.append("📊 Результат машинного анализа:")
+    feedback.append("🧠 Результат машинного анализа:")
 
     if prediction == 1:
-        feedback.append("✅ Решение признано корректным.")
+        feedback.append("✅ Решение классифицировано как корректное.")
     else:
-        feedback.append("❌ Решение признано некорректным.")
+        feedback.append("❌ Решение классифицировано как некорректное.")
 
     return "\n".join(feedback)
