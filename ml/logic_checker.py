@@ -58,7 +58,7 @@ def extract_assignments(code: str):
 
 
 # ======================================================
-# ГЕНЕРАТОРЫ ТЕСТОВЫХ ДАННЫХ
+# ГЕНЕРАТОРЫ ТЕСТОВ
 # ======================================================
 
 def gen_list_numbers():
@@ -70,7 +70,11 @@ def gen_list_strings():
 
 
 def gen_dict_numbers():
-    return {"a": random.randint(1, 20), "b": random.randint(1, 20), "c": random.randint(1, 20)}
+    return {
+        "a": random.randint(1, 20),
+        "b": random.randint(1, 20),
+        "c": random.randint(1, 20)
+    }
 
 
 def gen_text():
@@ -84,7 +88,7 @@ def gen_text():
 def check(task_text: str, user_code: str):
     task = task_text.lower()
 
-    # --- AST и базовые проверки ---
+    # --- AST и синтаксис ---
     try:
         ast_security_check(user_code)
         ast.parse(user_code)
@@ -96,7 +100,7 @@ def check(task_text: str, user_code: str):
 
     base_env = extract_assignments(user_code)
 
-    # --- несколько тестовых прогонов ---
+    # --- несколько прогонов ---
     for _ in range(5):
         env = copy.deepcopy(base_env)
 
@@ -141,8 +145,9 @@ def check(task_text: str, user_code: str):
 
             elif "между двумя индексами" in task:
                 i, j = 1, len(data) - 2
-                if r != sum(data[i:j+1]):
-                    return False, f"Ожидалось {sum(data[i:j+1])}, получено {r}"
+                exp = sum(data[i:j + 1])
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
         # ================= СПИСКИ СТРОК =================
         if "список строк" in task:
@@ -181,43 +186,43 @@ def check(task_text: str, user_code: str):
             safe_exec(user_code, env)
             r = env.get("result")
 
-            # 14, 273
-            if "ключ" in task and "список пар" not in task:
-                exp = list(d.keys())
-                if r != exp:
-                    return False, f"Ожидалось {exp}, получено {r}"
-
-            # 15, 42, 232, 282
-            elif "значени" in task and "список пар" not in task:
-                exp = list(d.values())
-                if r != exp:
-                    return False, f"Ожидалось {exp}, получено {r}"
-
-            # 269
-            elif "список пар" in task or "пары" in task:
+            # 🔴 269 — СПИСОК ПАР (ДОЛЖНО БЫТЬ ПЕРВЫМ!)
+            if "список пар" in task or "пары" in task:
                 exp = list(d.items())
                 if r != exp:
                     return False, f"Ожидалось {exp}, получено {r}"
 
-            # 46, 225
+            # 14, 273 — ключи
+            elif "ключ" in task:
+                exp = list(d.keys())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
+
+            # 15, 42, 232, 282 — значения
+            elif "значени" in task:
+                exp = list(d.values())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
+
+            # 46, 225 — сумма значений
             elif "сумм" in task:
                 exp = sum(d.values())
                 if r != exp:
                     return False, f"Ожидалось {exp}, получено {r}"
 
-            # 7, 66
+            # 7, 66 — среднее
             elif "средн" in task:
                 exp = mean(d.values())
                 if r != exp:
                     return False, f"Ожидалось {exp}, получено {r}"
 
-            # 142
+            # 142 — сумма квадратов
             elif "квадрат" in task:
-                exp = sum(v*v for v in d.values())
+                exp = sum(v * v for v in d.values())
                 if r != exp:
                     return False, f"Ожидалось {exp}, получено {r}"
 
-            # 53, 222
+            # 53, 222 — поменять ключи и значения
             elif "поменяйте" in task:
                 exp = {v: k for k, v in d.items()}
                 if r != exp:
