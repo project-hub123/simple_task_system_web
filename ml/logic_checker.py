@@ -1,3 +1,5 @@
+# ml/logic_checker.py
+
 import ast
 import copy
 import random
@@ -5,7 +7,38 @@ import re
 from statistics import mean, median
 
 
-# -------------------- ВСПОМОГАТЕЛЬНЫЕ --------------------
+# ======================================================
+# AST-БЕЗОПАСНОСТЬ
+# ======================================================
+
+FORBIDDEN_NODES = (
+    ast.Import,
+    ast.ImportFrom,
+    ast.With,
+    ast.Try,
+    ast.Global,
+    ast.Nonlocal,
+    ast.Lambda,
+)
+
+FORBIDDEN_NAMES = {
+    "open", "exec", "eval", "__import__", "compile", "input"
+}
+
+
+def ast_security_check(code: str):
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if isinstance(node, FORBIDDEN_NODES):
+            raise ValueError("Запрещённая конструкция в коде")
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_NAMES:
+                raise ValueError(f"Запрещённая функция: {node.func.id}")
+
+
+# ======================================================
+# ВСПОМОГАТЕЛЬНЫЕ
+# ======================================================
 
 def safe_exec(code: str, env: dict):
     exec(code, {}, env)
@@ -24,155 +57,194 @@ def extract_assignments(code: str):
     return env
 
 
-def has_result(code: str):
-    return "result" in code
+# ======================================================
+# ГЕНЕРАТОРЫ ТЕСТОВЫХ ДАННЫХ
+# ======================================================
+
+def gen_list_numbers():
+    return [random.randint(-10, 10) for _ in range(6)]
 
 
-# -------------------- ТЕСТОВЫЕ ДАННЫЕ --------------------
+def gen_list_strings():
+    return ["Apple", "banana", "Cat", "dog", "py3"]
 
-TEST_LIST_NUM = [3, -1, 5, 0, -7, 9]
-TEST_LIST_STR = ["Apple", "banana", "PEAR", "cat", "dog123"]
-TEST_DICT = {"a": 2, "b": 5, "c": 10}
-TEST_TEXT = "Anna has 2 apples and 3 bananas."
 
-# -------------------- ОСНОВНАЯ ПРОВЕРКА --------------------
+def gen_dict_numbers():
+    return {"a": random.randint(1, 20), "b": random.randint(1, 20), "c": random.randint(1, 20)}
+
+
+def gen_text():
+    return "Anna has 2 apples and 3 bananas"
+
+
+# ======================================================
+# ОСНОВНАЯ ПРОВЕРКА
+# ======================================================
 
 def check(task_text: str, user_code: str):
     task = task_text.lower()
 
-    # 1. Синтаксис
+    # --- AST и базовые проверки ---
     try:
+        ast_security_check(user_code)
         ast.parse(user_code)
-    except SyntaxError as e:
-        return False, f"Синтаксическая ошибка: {e}"
+    except Exception as e:
+        return False, str(e)
 
-    if not has_result(user_code):
+    if "result" not in user_code:
         return False, "В коде должна быть переменная result"
 
     base_env = extract_assignments(user_code)
 
-    # ---------- СПИСКИ ЧИСЕЛ ----------
-    if "список чисел" in task:
+    # --- несколько тестовых прогонов ---
+    for _ in range(5):
         env = copy.deepcopy(base_env)
-        env["data"] = TEST_LIST_NUM
-        env["numbers"] = TEST_LIST_NUM
 
-        try:
+        # ================= СПИСКИ ЧИСЕЛ =================
+        if "список чисел" in task:
+            data = gen_list_numbers()
+            env["data"] = data
+            env["numbers"] = data
+
             safe_exec(user_code, env)
-        except Exception as e:
-            return False, f"Ошибка выполнения: {e}"
+            r = env.get("result")
 
-        r = env.get("result")
+            if "сумм" in task:
+                if r != sum(data):
+                    return False, f"Ожидалось {sum(data)}, получено {r}"
 
-        if "сумм" in task:
-            return (r == sum(TEST_LIST_NUM),
-                    f"Ожидалось {sum(TEST_LIST_NUM)}, получено {r}")
+            elif "чётн" in task:
+                exp = [x for x in data if x % 2 == 0]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "максим" in task:
-            return (r == max(TEST_LIST_NUM),
-                    f"Ожидалось {max(TEST_LIST_NUM)}, получено {r}")
+            elif "разверните" in task:
+                exp = data[::-1]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "миним" in task:
-            return (r == min(TEST_LIST_NUM),
-                    f"Ожидалось {min(TEST_LIST_NUM)}, получено {r}")
+            elif "максим" in task and "индекс" not in task:
+                if r != max(data):
+                    return False, f"Ожидалось {max(data)}, получено {r}"
 
-        if "чётн" in task:
-            exp = [x for x in TEST_LIST_NUM if x % 2 == 0]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "миним" in task:
+                if r != min(data):
+                    return False, f"Ожидалось {min(data)}, получено {r}"
 
-        if "разверните" in task:
-            exp = TEST_LIST_NUM[::-1]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "средн" in task:
+                if r != mean(data):
+                    return False, f"Ожидалось {mean(data)}, получено {r}"
 
-        if "среднее" in task:
-            exp = mean(TEST_LIST_NUM)
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "медиан" in task:
+                if r != median(data):
+                    return False, f"Ожидалось {median(data)}, получено {r}"
 
-        if "медиан" in task:
-            exp = median(TEST_LIST_NUM)
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "между двумя индексами" in task:
+                i, j = 1, len(data) - 2
+                if r != sum(data[i:j+1]):
+                    return False, f"Ожидалось {sum(data[i:j+1])}, получено {r}"
 
-    # ---------- СПИСКИ СТРОК ----------
-    if "список строк" in task:
-        env = copy.deepcopy(base_env)
-        env["words"] = TEST_LIST_STR
-        env["strings"] = TEST_LIST_STR
+        # ================= СПИСКИ СТРОК =================
+        if "список строк" in task:
+            words = gen_list_strings()
+            env["words"] = words
 
-        try:
             safe_exec(user_code, env)
-        except Exception as e:
-            return False, f"Ошибка выполнения: {e}"
+            r = env.get("result")
 
-        r = env.get("result")
+            if "длин" in task:
+                exp = [len(w) for w in words]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "длин" in task:
-            exp = [len(s) for s in TEST_LIST_STR]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "верхний" in task:
+                exp = [w.upper() for w in words]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "верхний" in task:
-            exp = [s.upper() for s in TEST_LIST_STR]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "нижний" in task:
+                exp = [w.lower() for w in words]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "нижний" in task:
-            exp = [s.lower() for s in TEST_LIST_STR]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "букву" in task:
+                exp = [w for w in words if "a" in w.lower()]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "букву" in task:
-            exp = [s for s in TEST_LIST_STR if "a" in s.lower()]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+        # ================= СЛОВАРИ =================
+        if "словар" in task:
+            d = gen_dict_numbers()
+            env["data"] = d
+            env["scores"] = d
 
-    # ---------- СЛОВАРИ ----------
-    if "словар" in task:
-        env = copy.deepcopy(base_env)
-        env["data"] = TEST_DICT
-        env["scores"] = TEST_DICT
-
-        try:
             safe_exec(user_code, env)
-        except Exception as e:
-            return False, f"Ошибка выполнения: {e}"
+            r = env.get("result")
 
-        r = env.get("result")
+            # 14, 273
+            if "ключ" in task and "список пар" not in task:
+                exp = list(d.keys())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "сумм" in task:
-            exp = sum(TEST_DICT.values())
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            # 15, 42, 232, 282
+            elif "значени" in task and "список пар" not in task:
+                exp = list(d.values())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "средн" in task:
-            exp = mean(TEST_DICT.values())
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            # 269
+            elif "список пар" in task or "пары" in task:
+                exp = list(d.items())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "квадрат" in task:
-            exp = sum(v*v for v in TEST_DICT.values())
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            # 46, 225
+            elif "сумм" in task:
+                exp = sum(d.values())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "ключ" in task and "максим" in task:
-            exp = max(TEST_DICT, key=TEST_DICT.get)
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            # 7, 66
+            elif "средн" in task:
+                exp = mean(d.values())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-    # ---------- ТЕКСТ ----------
-    if "текст" in task:
-        env = copy.deepcopy(base_env)
-        env["text"] = TEST_TEXT
+            # 142
+            elif "квадрат" in task:
+                exp = sum(v*v for v in d.values())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        try:
+            # 53, 222
+            elif "поменяйте" in task:
+                exp = {v: k for k, v in d.items()}
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
+
+        # ================= ТЕКСТ =================
+        if "текст" in task:
+            text = gen_text()
+            env["text"] = text
+
             safe_exec(user_code, env)
-        except Exception as e:
-            return False, f"Ошибка выполнения: {e}"
+            r = env.get("result")
 
-        r = env.get("result")
+            if "слов" in task:
+                exp = len(text.split())
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "слов" in task:
-            exp = len(TEST_TEXT.split())
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "символ" in task and "пробел" not in task:
+                exp = len(text.replace(" ", ""))
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "символ" in task:
-            exp = len(TEST_TEXT.replace(" ", ""))
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
+            elif "палиндром" in task:
+                t = re.sub(r"\W", "", text.lower())
+                exp = t == t[::-1]
+                if r != exp:
+                    return False, f"Ожидалось {exp}, получено {r}"
 
-        if "палиндром" in task:
-            t = TEST_TEXT.lower().replace(" ", "")
-            exp = t == t[::-1]
-            return (r == exp, f"Ожидалось {exp}, получено {r}")
-
-    return False, "Тип задачи не поддерживается данным чекером"
+    return True, "Решение верное"
