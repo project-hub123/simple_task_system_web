@@ -1,7 +1,6 @@
 import sys
 print("APP STARTED, PYTHON:", sys.executable)
 
-from ml import generate_task
 import os
 import datetime
 from typing import Dict
@@ -13,8 +12,8 @@ from flask_login import (
     logout_user, current_user, UserMixin
 )
 
-# ВАЖНО: используем ТОЛЬКО predict
-from ml.predict import predict
+# ИМПОРТИРУЕМ ТОЛЬКО ИЗ ml
+from ml import generate_task, predict
 
 # ================= НАСТРОЙКИ =================
 
@@ -94,6 +93,7 @@ def index():
     if request.method == "POST":
         action = request.form.get("action")
 
+        # ===== ГЕНЕРАЦИЯ ЗАДАНИЯ =====
         if action == "generate":
             task = generate_task()
             solution = ""
@@ -101,6 +101,7 @@ def index():
             error = None
             log_action(current_user.username, "Сгенерировано задание")
 
+        # ===== ПРОВЕРКА РЕШЕНИЯ =====
         elif action == "check":
             task = request.form.get("task", "")
             solution = request.form.get("solution", "")
@@ -111,7 +112,8 @@ def index():
                 error = "Решение не может быть пустым."
             else:
                 try:
-                    feedback = predict(solution_text=solution, task_text=task)
+                    # ВАЖНО: позиционные аргументы в правильном порядке
+                    feedback = predict(task, solution)
                     error = None
 
                     db.session.add(Report(
