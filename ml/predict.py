@@ -1,12 +1,21 @@
 # ml/predict.py
 
-from .logic_checker import check
+from .checkers import check_solution
 
 
-def predict(task_text: str, solution_text: str) -> str:
-    ok, msg = check(task_text, solution_text)
+def predict(task_type: str, solution_text: str) -> str:
+    """
+    Основная точка проверки решения.
 
-    if ok:
+    task_type: тип задания (например: 'dict_items', 'list_reverse', ...)
+    solution_text: код пользователя
+    """
+
+    ok, msg = check_solution(task_type, solution_text)
+
+    if ok is True:
         return "✅ " + msg
-    else:
+    elif ok is False:
         return "❌ " + msg
+    else:
+        return "⚠ " + msg
