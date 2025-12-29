@@ -1,75 +1,71 @@
-import ast
-import re
-from functools import reduce
-import operator
+# task_types.py
+# Описание типов заданий (метаданные)
+# Используется генератором, ML-классификатором и checker'ом
 
-# --- Универсальные утилиты для извлечения данных из задания ---
+TASK_TYPES = {
+    # ===== СПИСКИ ЧИСЕЛ =====
 
-def extract_list(text):
-    # Ищет в условии "список чисел", "список строк" и т.д.
-    match = re.search(r'=\s*(\[[^\]]+\])', text)
-    return ast.literal_eval(match.group(1)) if match else None
+    "list_sum": {
+        "input": "list[int]",
+        "description": "Сумма элементов списка",
+    },
 
-def extract_dict(text):
-    match = re.search(r'=\s*({[^}]+})', text)
-    return ast.literal_eval(match.group(1)) if match else None
+    "list_positive_sum": {
+        "input": "list[int]",
+        "description": "Сумма положительных элементов",
+    },
 
-def extract_value(text, pattern):
-    match = re.search(pattern, text)
-    return match.group(1) if match else None
+    "list_negative_count": {
+        "input": "list[int]",
+        "description": "Количество отрицательных элементов",
+    },
 
-# --- ОПИСАНИЕ ТИПОВ ЗАДАЧ ---
+    "list_even": {
+        "input": "list[int]",
+        "description": "Чётные элементы списка",
+    },
 
-TASK_TYPES = [
-    {
-        "keywords": ["сумма положительных"],
-        "parser": extract_list,
-        "checker": lambda data: sum(x for x in data if x > 0),
+    "list_product": {
+        "input": "list[int]",
+        "description": "Произведение элементов списка",
     },
-    {
-        "keywords": ["количество отрицательных"],
-        "parser": extract_list,
-        "checker": lambda data: len([x for x in data if x < 0]),
+
+    "list_reverse": {
+        "input": "list[int]",
+        "description": "Разворот списка",
     },
-    {
-        "keywords": ["верхний регистр"],
-        "parser": extract_list,
-        "checker": lambda data: [str(x).upper() for x in data],
+
+    # ===== СПИСКИ СТРОК =====
+
+    "strings_upper": {
+        "input": "list[str]",
+        "description": "Преобразование строк в верхний регистр",
     },
-    {
-        "keywords": ["длину каждой строки"],
-        "parser": extract_list,
-        "checker": lambda data: [len(str(x)) for x in data],
+
+    "strings_length": {
+        "input": "list[str]",
+        "description": "Длина каждой строки",
     },
-    {
-        "keywords": ["максимальное и минимальное"],
-        "parser": extract_list,
-        "checker": lambda data: (max(data), min(data)),
+
+    "strings_longest": {
+        "input": "list[str]",
+        "description": "Самая длинная строка",
     },
-    {
-        "keywords": ["чётные элементы"],
-        "parser": extract_list,
-        "checker": lambda data: [x for x in data if x % 2 == 0],
+
+    # ===== СЛОВАРИ =====
+
+    "dict_sum": {
+        "input": "dict[str,int]",
+        "description": "Сумма значений словаря",
     },
-    {
-        "keywords": ["среднее значение"],
-        "parser": extract_dict,
-        "checker": lambda data: sum(data.values()) / len(data),
+
+    "dict_average": {
+        "input": "dict[str,int]",
+        "description": "Среднее значение словаря",
     },
-    {
-        "keywords": ["произведение всех элементов"],
-        "parser": extract_list,
-        "checker": lambda data: reduce(operator.mul, data, 1),
+
+    "dict_items": {
+        "input": "dict[str,int]",
+        "description": "Список пар (ключ, значение)",
     },
-    {
-        "keywords": ["самую длинную строку"],
-        "parser": extract_list,
-        "checker": lambda data: max(data, key=len),
-    },
-    {
-        "keywords": ["есть ли в нём ноль"],
-        "parser": extract_list,
-        "checker": lambda data: 0 in data,
-    },
-    # ... Добавляй любые шаблоны!
-]
+}
