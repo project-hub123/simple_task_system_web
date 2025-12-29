@@ -3,6 +3,8 @@ import random
 import os
 from typing import Dict, List
 
+from ml.task_classifier import classify_task  # ⬅ НЕЙРОСЕТЬ
+
 # ============================================================
 # НАСТРОЙКИ
 # ============================================================
@@ -36,54 +38,24 @@ def _load_tasks() -> None:
     if not _tasks_cache:
         raise RuntimeError("CSV-файл с заданиями пуст")
 
-
-# ============================================================
-# КЛАССИФИКАЦИЯ ТИПА ЗАДАНИЯ
-# (позже здесь будет нейросеть)
-# ============================================================
-
-def classify_task(task_text: str) -> str:
-    """
-    ВРЕМЕННО: эвристика.
-    В ВКР: заменить на ML-модель.
-    """
-
-    t = task_text.lower()
-
-    if "словар" in t and "пары" in t:
-        return "dict_items"
-
-    if "словар" in t and "сумм" in t:
-        return "dict_sum"
-
-    if "строк" in t and "верхн" in t:
-        return "strings_upper"
-
-    if "строк" in t and "длин" in t:
-        return "strings_length"
-
-    if "список чисел" in t and "сумм" in t:
-        return "list_sum"
-
-    if "список чисел" in t and "чётн" in t:
-        return "list_even"
-
-    if "разверните список" in t:
-        return "list_reverse"
-
-    # fallback
-    return "unknown"
-
-
 # ============================================================
 # ГЕНЕРАЦИЯ ЗАДАНИЯ
 # ============================================================
 
 def generate_task() -> Dict[str, str]:
+    """
+    Генерирует учебное задание и автоматически
+    определяет его тип с помощью нейросети.
+    """
+
     _load_tasks()
 
     task_text = random.choice(_tasks_cache)
-    task_type = classify_task(task_text)
+
+    try:
+        task_type = classify_task(task_text)
+    except Exception as e:
+        raise RuntimeError(f"Ошибка ML-классификации задания: {e}")
 
     return {
         "task_text": task_text,
