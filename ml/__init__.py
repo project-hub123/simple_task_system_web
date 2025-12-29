@@ -1,2 +1,2 @@
+from .semantic_generator import generate_task
 from .predict import predict
-from .task_generator import generate_task
