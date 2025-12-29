@@ -5,14 +5,17 @@ import os
 import datetime
 from typing import Dict
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import (
+    Flask, render_template, request,
+    redirect, url_for, flash, session
+)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, login_user, login_required,
     logout_user, current_user, UserMixin
 )
 
-# ИМПОРТИРУЕМ ТОЛЬКО ИЗ ml
+# ИМПОРТ ИЗ ml (НОВАЯ АРХИТЕКТУРА)
 from ml import generate_task, predict
 
 # ================= НАСТРОЙКИ =================
@@ -36,14 +39,16 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(50), nullable=False)
 
+
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer)
     username = db.Column(db.String(150))
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    task = db.Column(db.Text)
+    task_text = db.Column(db.Text)
     solution = db.Column(db.Text)
     feedback = db.Column(db.Text)
+
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -80,12 +85,12 @@ def get_system_stats() -> Dict[str, int]:
         "logs": AuditLog.query.count()
     }
 
-# ================= РОУТЫ =================
+# ================= ОСНОВНОЙ РОУТ =================
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def index():
-    task = ""
+    task_text = ""
     solution = ""
     feedback = ""
     error = None
@@ -96,30 +101,34 @@ def index():
         # ===== ГЕНЕРАЦИЯ ЗАДАНИЯ =====
         if action == "generate":
             task = generate_task()
+
+            session["current_task"] = task
+            task_text = task["task_text"]
+
             solution = ""
             feedback = ""
             error = None
+
             log_action(current_user.username, "Сгенерировано задание")
 
         # ===== ПРОВЕРКА РЕШЕНИЯ =====
         elif action == "check":
-            task = request.form.get("task", "")
             solution = request.form.get("solution", "")
 
-            if not task.strip():
-                error = "Задание отсутствует."
+            task = session.get("current_task")
+
+            if not task:
+                error = "Сначала сгенерируйте задание."
             elif not solution.strip():
                 error = "Решение не может быть пустым."
             else:
                 try:
-                    # ВАЖНО: позиционные аргументы в правильном порядке
                     feedback = predict(task, solution)
-                    error = None
 
                     db.session.add(Report(
                         user_id=current_user.id,
                         username=current_user.username,
-                        task=task,
+                        task_text=task["task_text"],
                         solution=solution,
                         feedback=feedback
                     ))
@@ -131,9 +140,11 @@ def index():
                     error = f"Ошибка проверки: {e}"
                     feedback = ""
 
+            task_text = task["task_text"] if task else ""
+
     return render_template(
         "index.html",
-        task=task,
+        task=task_text,
         solution=solution,
         feedback=feedback,
         error_msg=error
@@ -184,7 +195,10 @@ def register():
 def logout():
     log_action(current_user.username, "Выход из системы")
     logout_user()
+    session.pop("current_task", None)
     return redirect(url_for("login"))
+
+# ================= ПРОЧЕЕ =================
 
 @app.route("/help")
 @login_required
