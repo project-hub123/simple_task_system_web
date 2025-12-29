@@ -3,14 +3,19 @@ import random
 import os
 from typing import Dict, List
 
-from ml.task_classifier import classify_task  # ⬅ НЕЙРОСЕТЬ
+from ml.task_classifier import classify_task
 
 # ============================================================
-# НАСТРОЙКИ
+# ПУТИ (СТАБИЛЬНО ДЛЯ RENDER)
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TASKS_CSV_PATH = os.path.join(BASE_DIR, "..", "data", "tasks_300.csv")
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+TASKS_CSV_PATH = os.path.join(
+    PROJECT_ROOT, "data", "tasks_300.csv"
+)
 
 # ============================================================
 # КЭШ
@@ -27,7 +32,9 @@ def _load_tasks() -> None:
         return
 
     if not os.path.exists(TASKS_CSV_PATH):
-        raise RuntimeError(f"Файл не найден: {TASKS_CSV_PATH}")
+        raise RuntimeError(
+            f"Файл с заданиями не найден: {TASKS_CSV_PATH}"
+        )
 
     with open(TASKS_CSV_PATH, encoding="utf-8-sig") as f:
         reader = csv.reader(f)
@@ -55,7 +62,9 @@ def generate_task() -> Dict[str, str]:
     try:
         task_type = classify_task(task_text)
     except Exception as e:
-        raise RuntimeError(f"Ошибка ML-классификации задания: {e}")
+        raise RuntimeError(
+            f"Ошибка ML-классификации задания: {e}"
+        )
 
     return {
         "task_text": task_text,

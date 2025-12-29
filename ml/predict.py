@@ -3,15 +3,22 @@
 from .checkers import check_solution
 
 
-def predict(task_type: str, solution_text: str) -> str:
+def predict(task: dict, solution_text: str) -> str:
     """
     Основная точка проверки решения.
 
-    task_type: тип задания (например: 'dict_items', 'list_reverse', ...)
+    task: словарь с ключами:
+        - task_text
+        - task_type
     solution_text: код пользователя
     """
 
-    ok, msg = check_solution(task_type, solution_text)
+    task_type = task.get("task_type", "general")
+
+    try:
+        ok, msg = check_solution(task_type, solution_text)
+    except Exception as e:
+        return f"⚠ Ошибка проверки: {e}"
 
     if ok is True:
         return "✅ " + msg

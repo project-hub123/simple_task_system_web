@@ -15,16 +15,22 @@ from flask_login import (
     logout_user, current_user, UserMixin
 )
 
-# ИМПОРТ ИЗ ml (НОВАЯ АРХИТЕКТУРА)
-from ml import generate_task, predict
+# ===== ИМПОРТ ИЗ ml (ЯВНО И КОРРЕКТНО) =====
+from ml.task_generator import generate_task
+from ml.predict import predict
 
 # ================= НАСТРОЙКИ =================
 
 FLASK_SECRET = os.getenv("FLASK_SECRET", "secret_123")
 
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///db.sqlite3"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    "sqlite:///" + os.path.join(BASE_DIR, "db.sqlite3")
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -60,12 +66,11 @@ class AuditLog(db.Model):
 
 with app.app_context():
     db.create_all()
+
     if not User.query.filter_by(username="admin").first():
-        db.session.add(User(
-            username="admin",
-            password="1234",
-            role="admin"
-        ))
+        db.session.add(
+            User(username="admin", password="1234", role="admin")
+        )
         db.session.commit()
 
 @login_manager.user_loader
@@ -85,7 +90,7 @@ def get_system_stats() -> Dict[str, int]:
         "logs": AuditLog.query.count()
     }
 
-# ================= ОСНОВНОЙ РОУТ =================
+# ================= ГЛАВНАЯ СТРАНИЦА =================
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
@@ -100,21 +105,17 @@ def index():
 
         # ===== ГЕНЕРАЦИЯ ЗАДАНИЯ =====
         if action == "generate":
-            task = generate_task()
-
-            session["current_task"] = task
-            task_text = task["task_text"]
-
-            solution = ""
-            feedback = ""
-            error = None
-
-            log_action(current_user.username, "Сгенерировано задание")
+            try:
+                task = generate_task()
+                session["current_task"] = task
+                task_text = task.get("task_text", "")
+                log_action(current_user.username, "Сгенерировано задание")
+            except Exception as e:
+                error = f"Ошибка генерации: {e}"
 
         # ===== ПРОВЕРКА РЕШЕНИЯ =====
         elif action == "check":
             solution = request.form.get("solution", "")
-
             task = session.get("current_task")
 
             if not task:
@@ -125,22 +126,23 @@ def index():
                 try:
                     feedback = predict(task, solution)
 
-                    db.session.add(Report(
-                        user_id=current_user.id,
-                        username=current_user.username,
-                        task_text=task["task_text"],
-                        solution=solution,
-                        feedback=feedback
-                    ))
+                    db.session.add(
+                        Report(
+                            user_id=current_user.id,
+                            username=current_user.username,
+                            task_text=task.get("task_text", ""),
+                            solution=solution,
+                            feedback=feedback
+                        )
+                    )
                     db.session.commit()
 
                     log_action(current_user.username, "Проверено решение")
 
                 except Exception as e:
                     error = f"Ошибка проверки: {e}"
-                    feedback = ""
 
-            task_text = task["task_text"] if task else ""
+            task_text = task.get("task_text", "") if task else ""
 
     return render_template(
         "index.html",
@@ -156,14 +158,17 @@ def index():
 def login():
     if request.method == "POST":
         user = User.query.filter_by(
-            username=request.form["username"],
-            password=request.form["password"]
+            username=request.form.get("username"),
+            password=request.form.get("password")
         ).first()
+
         if user:
             login_user(user)
             log_action(user.username, "Вход в систему")
             return redirect(url_for("index"))
+
         flash("Ошибка входа", "danger")
+
     return render_template("login.html")
 
 @app.route("/register", methods=["GET", "POST"])
@@ -177,11 +182,9 @@ def register():
             flash("Пользователь уже существует", "danger")
             return redirect(url_for("register"))
 
-        db.session.add(User(
-            username=username,
-            password=password,
-            role=role
-        ))
+        db.session.add(
+            User(username=username, password=password, role=role)
+        )
         db.session.commit()
 
         log_action(username, "Регистрация пользователя")
@@ -198,7 +201,7 @@ def logout():
     session.pop("current_task", None)
     return redirect(url_for("login"))
 
-# ================= ПРОЧЕЕ =================
+# ================= ПРОЧИЕ СТРАНИЦЫ =================
 
 @app.route("/help")
 @login_required
@@ -222,6 +225,7 @@ def teacher_panel():
     if current_user.role != "teacher":
         flash("Доступ запрещён", "danger")
         return redirect(url_for("index"))
+
     return render_template("teacher.html")
 
 @app.route("/user")
@@ -229,7 +233,7 @@ def teacher_panel():
 def user_panel():
     return render_template("user.html")
 
-# ================= ЗАПУСК =================
+# ================= ЛОКАЛЬНЫЙ ЗАПУСК =================
 
 if __name__ == "__main__":
     app.run(debug=True)

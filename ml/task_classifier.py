@@ -1,30 +1,50 @@
 import os
-import joblib
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, "models")
+# ============================================================
+# ПУТИ
+# ============================================================
 
-VECTORIZER_PATH = os.path.join(MODEL_DIR, "task_vectorizer.pkl")
-CLASSIFIER_PATH = os.path.join(MODEL_DIR, "task_classifier.pkl")
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
 
-_vectorizer = None
-_classifier = None
+MODEL_DIR = os.path.join(PROJECT_ROOT, "models")
 
+VECTORIZER_PATH = os.path.join(
+    MODEL_DIR, "task_vectorizer.pkl"
+)
 
-def load_model():
-    global _vectorizer, _classifier
+CLASSIFIER_PATH = os.path.join(
+    MODEL_DIR, "task_classifier.pkl"
+)
 
-    if _vectorizer is None or _classifier is None:
-        if not os.path.exists(VECTORIZER_PATH) or not os.path.exists(CLASSIFIER_PATH):
-            raise RuntimeError("Модель классификации заданий не обучена")
+# ============================================================
+# ПРОВЕРКА НАЛИЧИЯ ML
+# ============================================================
 
-        _vectorizer = joblib.load(VECTORIZER_PATH)
-        _classifier = joblib.load(CLASSIFIER_PATH)
+ML_AVAILABLE = (
+    os.path.exists(VECTORIZER_PATH)
+    and os.path.exists(CLASSIFIER_PATH)
+)
 
-    return _vectorizer, _classifier
-
+# ============================================================
+# КЛАССИФИКАЦИЯ ЗАДАНИЯ
+# ============================================================
 
 def classify_task(task_text: str) -> str:
-    vectorizer, classifier = load_model()
+    """
+    Если ML-модель есть — используем её.
+    Если нет — возвращаем базовый тип.
+    """
+
+    if not ML_AVAILABLE:
+        return "general"
+
+    # ⬇️ этот код выполнится ТОЛЬКО если модели реально есть
+    import joblib
+
+    vectorizer = joblib.load(VECTORIZER_PATH)
+    classifier = joblib.load(CLASSIFIER_PATH)
+
     X = vectorizer.transform([task_text])
     return classifier.predict(X)[0]
