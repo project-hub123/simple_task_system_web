@@ -2,13 +2,64 @@ import ast
 import copy
 import random
 
+# ======================================================
+# БЕЗОПАСНОСТЬ AST
+# ======================================================
+
+FORBIDDEN_NODES = (
+    ast.Import,
+    ast.ImportFrom,
+    ast.With,
+    ast.Try,
+    ast.Global,
+    ast.Nonlocal,
+    ast.Lambda,
+)
+
+def ast_security_check(code: str):
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if isinstance(node, FORBIDDEN_NODES):
+            raise ValueError("Запрещённая конструкция в коде")
 
 # ======================================================
-# ОПИСАНИЕ ТИПОВ ЗАДАЧ
+# ВСПОМОГАТЕЛЬНОЕ
+# ======================================================
+
+def run_user_code(code: str, env: dict):
+    exec(code, {}, env)
+    return env.get("result")
+
+# ======================================================
+# ТЕКСТОВЫЕ ЗАДАНИЯ (универсальные)
+# ======================================================
+
+def check_text_remove_spaces(user_code: str):
+    test_input = "Привет мир Python"
+    expected = "ПриветмирPython"
+
+    env = {"text": test_input}
+
+    try:
+        ast_security_check(user_code)
+        ast.parse(user_code)
+        exec(user_code, {}, env)
+    except Exception as e:
+        return False, f"Ошибка выполнения: {e}"
+
+    if "result" not in env:
+        return False, "В коде должна быть переменная result"
+
+    if env["result"] == expected:
+        return True, "Пробелы удалены корректно"
+    else:
+        return False, f"Ожидалось '{expected}', получено '{env['result']}'"
+
+# ======================================================
+# СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ (списки, словари)
 # ======================================================
 
 TASK_DEFINITIONS = {
-    # --- списки чисел ---
     "list_sum": {
         "input": "list[int]",
         "reference": lambda data: sum(data),
@@ -24,8 +75,6 @@ TASK_DEFINITIONS = {
         "reference": lambda data: data[::-1],
         "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
     },
-
-    # --- списки строк ---
     "strings_upper": {
         "input": "list[str]",
         "reference": lambda data: [s.upper() for s in data],
@@ -36,8 +85,6 @@ TASK_DEFINITIONS = {
         "reference": lambda data: [len(s) for s in data],
         "generator": lambda: ["python", "ai", "ml"],
     },
-
-    # --- словари ---
     "dict_items": {
         "input": "dict",
         "reference": lambda d: list(d.items()),
@@ -50,38 +97,6 @@ TASK_DEFINITIONS = {
     },
 }
 
-
-# ======================================================
-# БЕЗОПАСНОСТЬ AST
-# ======================================================
-
-FORBIDDEN_NODES = (
-    ast.Import,
-    ast.ImportFrom,
-    ast.With,
-    ast.Try,
-    ast.Global,
-    ast.Nonlocal,
-    ast.Lambda,
-)
-
-
-def ast_security_check(code: str):
-    tree = ast.parse(code)
-    for node in ast.walk(tree):
-        if isinstance(node, FORBIDDEN_NODES):
-            raise ValueError("Запрещённая конструкция в коде")
-
-
-# ======================================================
-# ВСПОМОГАТЕЛЬНЫЕ
-# ======================================================
-
-def run_user_code(code: str, env: dict):
-    exec(code, {}, env)
-    return env.get("result")
-
-
 # ======================================================
 # ОСНОВНАЯ ПРОВЕРКА
 # ======================================================
@@ -89,34 +104,33 @@ def run_user_code(code: str, env: dict):
 def check_solution(task_type: str, user_code: str):
     """
     Универсальная автоматическая проверка решения.
-
-    task_type: тип задания (например, 'strings_upper', 'dict_items')
-    user_code: код пользователя
     """
 
-    # 1. Проверка синтаксиса и безопасности
+    # --- ТЕКСТОВЫЕ ЗАДАНИЯ ---
+    if task_type == "text_remove_spaces":
+        return check_text_remove_spaces(user_code)
+
+    # --- СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ ---
+    if task_type not in TASK_DEFINITIONS:
+        return False, "Тип задания не поддерживается системой"
+
+    task = TASK_DEFINITIONS[task_type]
+
     try:
         ast_security_check(user_code)
         ast.parse(user_code)
     except Exception as e:
-        return False, f"❌ Ошибка в коде: {e}"
+        return False, f"Ошибка в коде: {e}"
 
     if "result" not in user_code:
-        return False, "❌ В коде должна быть переменная result"
+        return False, "В коде должна быть переменная result"
 
-    if task_type not in TASK_DEFINITIONS:
-        return None, "⚠ Неизвестный тип задания"
-
-    task = TASK_DEFINITIONS[task_type]
-
-    # 2. Несколько тестовых прогонов
     for _ in range(5):
         test_data = task["generator"]()
         expected = task["reference"](copy.deepcopy(test_data))
 
         env = {}
 
-        # передаём входные данные
         if task["input"].startswith("list"):
             env["data"] = test_data
             env["numbers"] = test_data
@@ -127,9 +141,9 @@ def check_solution(task_type: str, user_code: str):
         try:
             user_result = run_user_code(user_code, env)
         except Exception as e:
-            return False, f"❌ Ошибка выполнения: {e}"
+            return False, f"Ошибка выполнения: {e}"
 
         if user_result != expected:
-            return False, f"❌ Неверно: ожидалось {expected}, получено {user_result}"
+            return False, f"Неверно: ожидалось {expected}, получено {user_result}"
 
-    return True, "✅ Решение верное"
+    return True, "Решение верное"
