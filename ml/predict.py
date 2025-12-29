@@ -7,13 +7,17 @@ def predict(task: dict, solution_text: str) -> str:
     """
     Основная точка проверки решения.
 
-    task: словарь с ключами:
+    task — словарь с ключами:
         - task_text
         - task_type
-    solution_text: код пользователя
+    solution_text — код пользователя
     """
 
-    task_type = task.get("task_type", "general")
+    # Явно берём тип задания
+    task_type = task.get("task_type")
+
+    if not task_type:
+        return "⚠ Тип задания не определён"
 
     try:
         ok, msg = check_solution(task_type, solution_text)
@@ -22,7 +26,8 @@ def predict(task: dict, solution_text: str) -> str:
 
     if ok is True:
         return "✅ " + msg
-    elif ok is False:
+
+    if ok is False:
         return "❌ " + msg
-    else:
-        return "⚠ " + msg
+
+    return "⚠ " + msg

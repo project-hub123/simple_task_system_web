@@ -31,7 +31,7 @@ def run_user_code(code: str, env: dict):
     return env.get("result")
 
 # ======================================================
-# ТЕКСТОВЫЕ ЗАДАНИЯ (универсальные)
+# ТЕКСТОВЫЕ ЗАДАНИЯ
 # ======================================================
 
 def check_text_remove_spaces(user_code: str):
@@ -52,11 +52,11 @@ def check_text_remove_spaces(user_code: str):
 
     if env["result"] == expected:
         return True, "Пробелы удалены корректно"
-    else:
-        return False, f"Ожидалось '{expected}', получено '{env['result']}'"
+
+    return False, f"Ожидалось '{expected}', получено '{env['result']}'"
 
 # ======================================================
-# СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ (списки, словари)
+# СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ (СПИСКИ, СЛОВАРИ)
 # ======================================================
 
 TASK_DEFINITIONS = {
@@ -106,11 +106,11 @@ def check_solution(task_type: str, user_code: str):
     Универсальная автоматическая проверка решения.
     """
 
-    # --- ТЕКСТОВЫЕ ЗАДАНИЯ ---
+    # --- ТЕКСТ ---
     if task_type == "text_remove_spaces":
         return check_text_remove_spaces(user_code)
 
-    # --- СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ ---
+    # --- СПИСКИ / СЛОВАРИ ---
     if task_type not in TASK_DEFINITIONS:
         return False, "Тип задания не поддерживается системой"
 
@@ -144,6 +144,9 @@ def check_solution(task_type: str, user_code: str):
             return False, f"Ошибка выполнения: {e}"
 
         if user_result != expected:
-            return False, f"Неверно: ожидалось {expected}, получено {user_result}"
+            return False, (
+                f"Неверно: ожидалось {expected}, "
+                f"получено {user_result}"
+            )
 
     return True, "Решение верное"
