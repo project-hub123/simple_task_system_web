@@ -5,63 +5,39 @@
 # по языку программирования Python с помощью нейронных сетей
 # (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
 
-from ml.task_generator import generate_task
-from ml.predict import predict
+import sys
+from PyQt5.QtWidgets import QApplication
+
+from ui.login_window import LoginWindow
+from ui.main_window import MainWindow
+from ml.auth import init_system
 
 
 def main():
-    print("=" * 60)
-    print("ИНТЕЛЛЕКТУАЛЬНЫЙ СЕРВИС ПРОВЕРКИ ЗАДАНИЙ ПО PYTHON")
-    print("=" * 60)
+    """
+    Точка входа десктопного приложения.
+    """
 
-    # -------------------------------------------------
-    # 1. Генерация учебного задания
-    # -------------------------------------------------
-    try:
-        task = generate_task()
-    except Exception as e:
-        print("Ошибка генерации задания:", e)
-        return
+    # Инициализация БД и системных пользователей
+    init_system()
 
-    print("\nЗАДАНИЕ:")
-    print(task["task_text"])
-    print("\nУсловие:")
-    print("— Напишите решение на Python")
-    print("— Результат должен быть записан в переменную result")
-    print("-" * 60)
+    app = QApplication(sys.argv)
 
-    # -------------------------------------------------
-    # 2. Ввод решения пользователя
-    # -------------------------------------------------
-    print("Введите решение (Python-код).")
-    print("Для завершения ввода напишите строку END.\n")
+    main_window_ref = {"window": None}
 
-    user_code_lines = []
+    def on_login_success(user: dict):
+        """
+        Открытие главного окна после входа пользователя
+        """
+        window = MainWindow(user)
+        window.show()
+        main_window_ref["window"] = window
 
-    while True:
-        line = input()
-        if line.strip() == "END":
-            break
-        user_code_lines.append(line)
+    # Окно входа
+    login_window = LoginWindow(on_login_success)
+    login_window.show()
 
-    user_code = "\n".join(user_code_lines)
-
-    if not user_code.strip():
-        print("Ошибка: решение не введено.")
-        return
-
-    # -------------------------------------------------
-    # 3. Проверка решения
-    # -------------------------------------------------
-    print("\nПРОВЕРКА РЕШЕНИЯ...")
-    result = predict(task, user_code)
-
-    # -------------------------------------------------
-    # 4. Вывод результата
-    # -------------------------------------------------
-    print("\nРЕЗУЛЬТАТ ПРОВЕРКИ:")
-    print(result)
-    print("=" * 60)
+    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
