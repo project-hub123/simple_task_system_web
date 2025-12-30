@@ -1,9 +1,15 @@
+# checkers.py
+# Автор: Федотова Анастасия Алексеевна
+# Тема ВКР:
+# «Автоматическая генерация и проверка учебных заданий по языку программирования Python
+#  с помощью нейронных сетей (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
+
 import ast
-import copy
 import random
+import copy
 
 # ======================================================
-# БЕЗОПАСНОСТЬ AST
+# AST-БЕЗОПАСНОСТЬ
 # ======================================================
 
 FORBIDDEN_NODES = (
@@ -14,129 +20,140 @@ FORBIDDEN_NODES = (
     ast.Global,
     ast.Nonlocal,
     ast.Lambda,
+    ast.ClassDef,
 )
 
 def ast_security_check(code: str):
+    """
+    Проверяет код пользователя на наличие запрещённых конструкций.
+    """
     tree = ast.parse(code)
     for node in ast.walk(tree):
         if isinstance(node, FORBIDDEN_NODES):
-            raise ValueError("Запрещённая конструкция в коде")
+            raise ValueError("В коде использованы запрещённые конструкции")
+
 
 # ======================================================
-# ВСПОМОГАТЕЛЬНОЕ
+# ВЫПОЛНЕНИЕ КОДА ПОЛЬЗОВАТЕЛЯ
 # ======================================================
 
 def run_user_code(code: str, env: dict):
+    """
+    Выполняет код пользователя в изолированной среде.
+    Ожидается, что результат будет сохранён в переменной result.
+    """
     exec(code, {}, env)
     return env.get("result")
 
-# ======================================================
-# ТЕКСТОВЫЕ ЗАДАНИЯ
-# ======================================================
-
-def check_text_remove_spaces(user_code: str):
-    test_input = "Привет мир Python"
-    expected = "ПриветмирPython"
-
-    env = {"text": test_input}
-
-    try:
-        ast_security_check(user_code)
-        ast.parse(user_code)
-        exec(user_code, {}, env)
-    except Exception as e:
-        return False, f"Ошибка выполнения: {e}"
-
-    if "result" not in env:
-        return False, "В коде должна быть переменная result"
-
-    if env["result"] == expected:
-        return True, "Пробелы удалены корректно"
-
-    return False, f"Ожидалось '{expected}', получено '{env['result']}'"
 
 # ======================================================
-# СТРУКТУРИРОВАННЫЕ ЗАДАНИЯ (СПИСКИ, СЛОВАРИ)
+# ОПИСАНИЯ ПОДДЕРЖИВАЕМЫХ ТИПОВ ЗАДАНИЙ
 # ======================================================
 
 TASK_DEFINITIONS = {
+
+    # ---------- СПИСКИ ЧИСЕЛ ----------
+
     "list_sum": {
         "input": "list[int]",
+        "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
         "reference": lambda data: sum(data),
-        "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
+        "vars": ["data", "numbers"]
     },
-    "list_even": {
+
+    "list_filter": {
         "input": "list[int]",
-        "reference": lambda data: [x for x in data if x % 2 == 0],
         "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
+        "reference": lambda data: [x for x in data if x % 2 == 0],
+        "vars": ["data", "numbers"]
     },
+
+    "list_transform": {
+        "input": "list[int]",
+        "generator": lambda: [random.randint(1, 9) for _ in range(5)],
+        "reference": lambda data: [x * x for x in data],
+        "vars": ["data", "numbers"]
+    },
+
     "list_reverse": {
         "input": "list[int]",
+        "generator": lambda: [random.randint(1, 9) for _ in range(5)],
         "reference": lambda data: data[::-1],
-        "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
+        "vars": ["data", "numbers"]
     },
-    "strings_upper": {
-        "input": "list[str]",
-        "reference": lambda data: [s.upper() for s in data],
-        "generator": lambda: ["python", "code", "analysis"],
+
+    # ---------- СТРОКИ ----------
+
+    "text_count": {
+        "input": "text",
+        "generator": lambda: "Python — это язык программирования",
+        "reference": lambda text: len(text.split()),
+        "vars": ["text"]
     },
-    "strings_length": {
-        "input": "list[str]",
-        "reference": lambda data: [len(s) for s in data],
-        "generator": lambda: ["python", "ai", "ml"],
+
+    "text_replace": {
+        "input": "text",
+        "generator": lambda: "Привет мир Python",
+        "reference": lambda text: text.replace(" ", ""),
+        "vars": ["text"]
     },
-    "dict_items": {
-        "input": "dict",
-        "reference": lambda d: list(d.items()),
-        "generator": lambda: {"a": 1, "b": 2, "c": 3},
-    },
+
+    # ---------- СЛОВАРИ ----------
+
     "dict_sum": {
         "input": "dict",
-        "reference": lambda d: sum(d.values()),
         "generator": lambda: {"a": 3, "b": 7, "c": 10},
+        "reference": lambda d: sum(d.values()),
+        "vars": ["data"]
+    },
+
+    "dict_avg": {
+        "input": "dict",
+        "generator": lambda: {"Ann": 80, "Bob": 95, "Kate": 70},
+        "reference": lambda d: sum(d.values()) / len(d),
+        "vars": ["data"]
     },
 }
 
+
 # ======================================================
-# ОСНОВНАЯ ПРОВЕРКА
+# ОСНОВНАЯ ФУНКЦИЯ ПРОВЕРКИ
 # ======================================================
 
 def check_solution(task_type: str, user_code: str):
     """
-    Универсальная автоматическая проверка решения.
+    Проверяет решение пользователя для заданного типа задания.
+
+    Возвращает:
+        (True, сообщение)  — если решение верное
+        (False, сообщение) — если решение неверное
     """
 
-    # --- ТЕКСТ ---
-    if task_type == "text_remove_spaces":
-        return check_text_remove_spaces(user_code)
-
-    # --- СПИСКИ / СЛОВАРИ ---
     if task_type not in TASK_DEFINITIONS:
-        return False, "Тип задания не поддерживается системой"
+        return False, f"Тип задания '{task_type}' не поддерживается системой"
 
-    task = TASK_DEFINITIONS[task_type]
+    if "result" not in user_code:
+        return False, "В решении должна быть переменная result"
 
+    # Проверка синтаксиса и безопасности
     try:
         ast_security_check(user_code)
         ast.parse(user_code)
     except Exception as e:
         return False, f"Ошибка в коде: {e}"
 
-    if "result" not in user_code:
-        return False, "В коде должна быть переменная result"
+    task = TASK_DEFINITIONS[task_type]
 
+    # Несколько прогонов для надёжности
     for _ in range(5):
-        test_data = task["generator"]()
-        expected = task["reference"](copy.deepcopy(test_data))
+        test_input = task["generator"]()
+        expected = task["reference"](copy.deepcopy(test_input))
 
         env = {}
 
-        if task["input"].startswith("list"):
-            env["data"] = test_data
-            env["numbers"] = test_data
-            env["words"] = test_data
-        elif task["input"] == "dict":
-            env["data"] = test_data
+        # Передаём входные данные пользователю
+        for var in task["vars"]:
+            env[var] = copy.deepcopy(test_input)
 
         try:
             user_result = run_user_code(user_code, env)
@@ -145,8 +162,9 @@ def check_solution(task_type: str, user_code: str):
 
         if user_result != expected:
             return False, (
-                f"Неверно: ожидалось {expected}, "
-                f"получено {user_result}"
+                f"Неверный результат.\n"
+                f"Ожидалось: {expected}\n"
+                f"Получено: {user_result}"
             )
 
     return True, "Решение верное"

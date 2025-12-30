@@ -1,9 +1,0 @@
-{
-    "accuracy": 1.0,
-    "precision": 1.0,
-    "recall": 1.0,
-    "f1": 1.0,
-    "train_time_sec": 0.0,
-    "train_size": 80,
-    "test_size": 20
-}

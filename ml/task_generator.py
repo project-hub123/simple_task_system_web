@@ -1,77 +1,105 @@
+# task_generator.py
+# Автор: Федотова Анастасия Алексеевна
+# Тема ВКР:
+# «Автоматическая генерация и проверка учебных заданий по языку программирования Python
+#  с помощью нейронных сетей (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
+
 import csv
-import random
 import os
+import random
 from typing import Dict, List
 
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")
-)
+from ml.task_classifier import classify_task
 
-TASKS_CSV_PATH = os.path.join(PROJECT_ROOT, "data", "tasks_300.csv")
+# ======================================================
+# ПУТИ К ФАЙЛАМ ПРОЕКТА
+# ======================================================
 
-_tasks_cache: List[str] = []
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-TASK_TYPE_MAP = {
-    1: "list_sum",
-    2: "list_count_negative",
-    3: "strings_length",
-    4: "list_min_max",
-    5: "list_even",
-    6: "strings_filter_a",
-    7: "dict_avg",
-    8: "list_product",
-    9: "strings_longest",
-    10: "list_contains_zero",
-    11: "list_sort_asc",
-    12: "list_sort_desc",
-    13: "strings_join",
-    14: "dict_keys",
-    15: "dict_values",
-    16: "list_count_gt",
-    17: "list_index_max",
-    18: "strings_lower",
-    19: "list_square",
-    20: "list_second_max",
-    25: "text_count_chars",
-    26: "text_count_words",
-    40: "strings_upper",
-    43: "text_remove_spaces",
-    47: "list_reverse",
-    51: "list_unique",
-    59: "text_replace_vowels",
-    71: "list_palindrome",
-    87: "text_replace_spaces",
-    100: "text_word_lengths",
-    101: "list_sum_positive",
-    231: "strings_upper",
-    234: "text_replace_spaces",
-    241: "text_palindrome",
-}
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+TASKS_FILE = os.path.join(DATA_DIR, "tasks_dataset.csv")
 
-def _load_tasks():
+# ======================================================
+# КЭШ ЗАДАНИЙ
+# ======================================================
+
+_tasks_cache: List[Dict[str, str]] = []
+
+# ======================================================
+# ЗАГРУЗКА ЗАДАНИЙ ИЗ CSV
+# ======================================================
+
+def load_tasks() -> None:
+    """
+    Загружает задания из CSV-файла в память.
+    Формат CSV:
+        task_id, task_text
+    """
+
     if _tasks_cache:
         return
 
-    with open(TASKS_CSV_PATH, encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
+    if not os.path.exists(TASKS_FILE):
+        raise RuntimeError(
+            f"Файл с заданиями не найден: {TASKS_FILE}"
+        )
+
+    with open(TASKS_FILE, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if "task_text" not in reader.fieldnames:
+            raise RuntimeError(
+                "CSV-файл должен содержать колонку 'task_text'"
+            )
+
         for row in reader:
-            if row and row[0].strip():
-                _tasks_cache.append(row[0].strip())
+            text = row.get("task_text", "").strip()
+            if text:
+                _tasks_cache.append({
+                    "task_text": text
+                })
+
+    if not _tasks_cache:
+        raise RuntimeError("Файл с заданиями пуст")
+
+
+# ======================================================
+# ГЕНЕРАЦИЯ ЗАДАНИЯ
+# ======================================================
 
 def generate_task() -> Dict[str, str]:
-    _load_tasks()
+    """
+    Выбирает случайное задание и определяет его тип
+    с помощью обученной ML-модели.
 
-    task_text = random.choice(_tasks_cache)
+    Возвращает словарь:
+    {
+        "task_text": "...",
+        "task_type": "list_sum" | "text_count" | ...
+    }
+    """
 
-    task_id = None
-    for token in task_text.replace(".", " ").split():
-        if token.isdigit():
-            task_id = int(token)
-            break
+    load_tasks()
 
-    task_type = TASK_TYPE_MAP.get(task_id, "unsupported")
+    task = random.choice(_tasks_cache)
+    task_text = task["task_text"]
+
+    # ML-классификация задания
+    task_type = classify_task(task_text)
 
     return {
         "task_text": task_text,
         "task_type": task_type
     }
+
+
+# ======================================================
+# ЛОКАЛЬНЫЙ ТЕСТ
+# ======================================================
+
+if __name__ == "__main__":
+    task = generate_task()
+    print("Задание:")
+    print(task["task_text"])
+    print("\nТип задания:", task["task_type"])
