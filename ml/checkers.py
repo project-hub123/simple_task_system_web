@@ -1,12 +1,12 @@
 # checkers.py
 # Автор: Федотова Анастасия Алексеевна
 # Тема ВКР:
-# «Автоматическая генерация и проверка учебных заданий по языку программирования Python
-#  с помощью нейронных сетей (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
+# «Автоматическая генерация и проверка учебных заданий
+# по языку программирования Python с помощью нейронных сетей
+# (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
 
 import ast
-import random
-import copy
+import string
 
 # ======================================================
 # AST-БЕЗОПАСНОСТЬ
@@ -24,9 +24,6 @@ FORBIDDEN_NODES = (
 )
 
 def ast_security_check(code: str):
-    """
-    Проверяет код пользователя на наличие запрещённых конструкций.
-    """
     tree = ast.parse(code)
     for node in ast.walk(tree):
         if isinstance(node, FORBIDDEN_NODES):
@@ -38,133 +35,203 @@ def ast_security_check(code: str):
 # ======================================================
 
 def run_user_code(code: str, env: dict):
-    """
-    Выполняет код пользователя в изолированной среде.
-    Ожидается, что результат будет сохранён в переменной result.
-    """
     exec(code, {}, env)
     return env.get("result")
 
 
 # ======================================================
-# ОПИСАНИЯ ПОДДЕРЖИВАЕМЫХ ТИПОВ ЗАДАНИЙ
+# ЭТАЛОННЫЕ ВЫЧИСЛЕНИЯ
 # ======================================================
 
-TASK_DEFINITIONS = {
+def calculate_reference(task_type: str, env: dict):
 
-    # ---------- СПИСКИ ЧИСЕЛ ----------
+    text = env.get("text")
+    data = env.get("data")
 
-    "list_sum": {
-        "input": "list[int]",
-        "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
-        "reference": lambda data: sum(data),
-        "vars": ["data", "numbers"]
-    },
+    # ---------- TEXT ----------
+    if task_type == "text_words":
+        return len(text.split())
 
-    "list_filter": {
-        "input": "list[int]",
-        "generator": lambda: [random.randint(-10, 10) for _ in range(6)],
-        "reference": lambda data: [x for x in data if x % 2 == 0],
-        "vars": ["data", "numbers"]
-    },
+    if task_type == "text_chars":
+        return len(text)
 
-    "list_transform": {
-        "input": "list[int]",
-        "generator": lambda: [random.randint(1, 9) for _ in range(5)],
-        "reference": lambda data: [x * x for x in data],
-        "vars": ["data", "numbers"]
-    },
+    if task_type == "text_chars_no_space":
+        return len(text.replace(" ", ""))
 
-    "list_reverse": {
-        "input": "list[int]",
-        "generator": lambda: [random.randint(1, 9) for _ in range(5)],
-        "reference": lambda data: data[::-1],
-        "vars": ["data", "numbers"]
-    },
+    if task_type == "text_remove_spaces":
+        return text.replace(" ", "")
 
-    # ---------- СТРОКИ ----------
+    if task_type == "text_longest_word":
+        return max(text.split(), key=len)
 
-    "text_count": {
-        "input": "text",
-        "generator": lambda: "Python — это язык программирования",
-        "reference": lambda text: len(text.split()),
-        "vars": ["text"]
-    },
+    if task_type == "text_shortest_word":
+        return min(text.split(), key=len)
 
-    "text_replace": {
-        "input": "text",
-        "generator": lambda: "Привет мир Python",
-        "reference": lambda text: text.replace(" ", ""),
-        "vars": ["text"]
-    },
+    if task_type == "text_sentence_count":
+        count = sum(1 for c in text if c in ".!?")
+        return count if count > 0 else 1
 
-    # ---------- СЛОВАРИ ----------
+    if task_type == "text_remove_punct":
+        return "".join(c for c in text if c not in string.punctuation + "—")
 
-    "dict_sum": {
-        "input": "dict",
-        "generator": lambda: {"a": 3, "b": 7, "c": 10},
-        "reference": lambda d: sum(d.values()),
-        "vars": ["data"]
-    },
+    if task_type == "text_vowel_count":
+        vowels = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
+        return sum(1 for c in text if c in vowels)
 
-    "dict_avg": {
-        "input": "dict",
-        "generator": lambda: {"Ann": 80, "Bob": 95, "Kate": 70},
-        "reference": lambda d: sum(d.values()) / len(d),
-        "vars": ["data"]
-    },
-}
+    # ---------- LIST (numbers) ----------
+    if task_type == "list_sum":
+        return sum(data)
+
+    if task_type == "list_sum_positive":
+        return sum(x for x in data if x > 0)
+
+    if task_type == "list_even":
+        return [x for x in data if x % 2 == 0]
+
+    if task_type == "list_square":
+        return [x * x for x in data]
+
+    if task_type == "list_max":
+        return max(data)
+
+    if task_type == "list_min":
+        return min(data)
+
+    if task_type == "list_diff_max_min":
+        return max(data) - min(data)
+
+    if task_type == "list_is_sorted":
+        return data == sorted(data)
+
+    if task_type == "list_median":
+        s = sorted(data)
+        n = len(s)
+        mid = n // 2
+        return s[mid] if n % 2 == 1 else (s[mid - 1] + s[mid]) / 2
+
+    if task_type == "list_top3":
+        return sorted(data, reverse=True)[:3]
+
+    if task_type == "list_max_adjacent_sum":
+        return max(data[i] + data[i + 1] for i in range(len(data) - 1))
+
+    if task_type == "list_above_avg":
+        avg = sum(data) / len(data)
+        return [x for x in data if x > avg]
+
+    if task_type == "list_unique_keep_order":
+        seen = []
+        for x in data:
+            if x not in seen:
+                seen.append(x)
+        return seen
+
+    if task_type == "list_split_even_odd":
+        return {
+            "even": [x for x in data if x % 2 == 0],
+            "odd": [x for x in data if x % 2 != 0]
+        }
+
+    if task_type == "list_sum_even_index":
+        return sum(data[i] for i in range(0, len(data), 2))
+
+    if task_type == "list_count_even_odd":
+        return {
+            "even": sum(1 for x in data if x % 2 == 0),
+            "odd": sum(1 for x in data if x % 2 != 0)
+        }
+
+    if task_type == "list_index_min":
+        return data.index(min(data))
+
+    # ---------- LIST (strings) ----------
+    if task_type == "list_unique_strings":
+        return len(set(data))
+
+    if task_type == "list_sort_strings":
+        return sorted(data)
+
+    if task_type == "list_longest_string":
+        return max(data, key=len)
+
+    if task_type == "list_join_comma":
+        return ",".join(data)
+
+    if task_type == "list_sort_by_length":
+        return sorted(data, key=len)
+
+    if task_type == "list_strings_alpha":
+        return [s for s in data if s.isalpha()]
+
+    if task_type == "list_strings_capital":
+        return [s for s in data if s and s[0].isupper()]
+
+    if task_type == "list_filter_len_gt_3":
+        return [s for s in data if len(s) > 3]
+
+    # ---------- DICT ----------
+    if task_type == "dict_sum":
+        return sum(data.values())
+
+    if task_type == "dict_avg":
+        return sum(data.values()) / len(data) if data else 0
+
+    if task_type == "dict_count":
+        return len(data)
+
+    if task_type == "dict_swap":
+        return {v: k for k, v in data.items()}
+
+    if task_type == "dict_key_max":
+        return max(data, key=data.get)
+
+    if task_type == "dict_values_list":
+        return list(data.values())
+
+    raise ValueError(f"Тип задания '{task_type}' не поддерживается")
 
 
 # ======================================================
 # ОСНОВНАЯ ФУНКЦИЯ ПРОВЕРКИ
 # ======================================================
 
-def check_solution(task_type: str, user_code: str):
-    """
-    Проверяет решение пользователя для заданного типа задания.
-
-    Возвращает:
-        (True, сообщение)  — если решение верное
-        (False, сообщение) — если решение неверное
-    """
-
-    if task_type not in TASK_DEFINITIONS:
-        return False, f"Тип задания '{task_type}' не поддерживается системой"
+def check_solution(task_type: str, user_code: str, input_data: str):
 
     if "result" not in user_code:
         return False, "В решении должна быть переменная result"
 
-    # Проверка синтаксиса и безопасности
     try:
         ast_security_check(user_code)
         ast.parse(user_code)
     except Exception as e:
         return False, f"Ошибка в коде: {e}"
 
-    task = TASK_DEFINITIONS[task_type]
+    env = {}
 
-    # Несколько прогонов для надёжности
-    for _ in range(5):
-        test_input = task["generator"]()
-        expected = task["reference"](copy.deepcopy(test_input))
+    try:
+        if task_type.startswith("text"):
+            env["text"] = input_data
+        else:
+            env["data"] = ast.literal_eval(input_data)
+    except Exception:
+        return False, "Ошибка разбора входных данных"
 
-        env = {}
+    try:
+        expected = calculate_reference(task_type, env)
+    except Exception as e:
+        return False, f"Ошибка эталонного расчёта: {e}"
 
-        # Передаём входные данные пользователю
-        for var in task["vars"]:
-            env[var] = copy.deepcopy(test_input)
+    try:
+        user_result = run_user_code(user_code, env)
+    except Exception as e:
+        return False, f"Ошибка выполнения: {e}"
 
-        try:
-            user_result = run_user_code(user_code, env)
-        except Exception as e:
-            return False, f"Ошибка выполнения: {e}"
-
-        if user_result != expected:
-            return False, (
-                f"Неверный результат.\n"
-                f"Ожидалось: {expected}\n"
-                f"Получено: {user_result}"
-            )
+    if user_result != expected:
+        return False, (
+            "Неверный результат.\n"
+            f"Входные данные: {input_data}\n"
+            f"Ожидалось: {expected}\n"
+            f"Получено: {user_result}"
+        )
 
     return True, "Решение верное"

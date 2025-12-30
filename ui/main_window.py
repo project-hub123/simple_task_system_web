@@ -58,13 +58,23 @@ class MainWindow(QMainWindow):
         central = QWidget()
         layout = QVBoxLayout()
 
+        # ТЕКСТ ЗАДАНИЯ + ИСХОДНЫЕ ДАННЫЕ
         self.label_task = QLabel("Задание не сгенерировано")
         self.label_task.setWordWrap(True)
-        self.label_task.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.label_task.setAlignment(Qt.AlignTop)
+        self.label_task.setStyleSheet(
+            "font-size: 14px;"
+            "font-weight: bold;"
+            "padding: 8px;"
+            "border: 1px solid #ccc;"
+        )
 
+        # ПОЛЕ ДЛЯ РЕШЕНИЯ
         self.text_solution = QTextEdit()
         self.text_solution.setPlaceholderText(
-            "Введите решение на Python.\n"
+            "Введите решение на Python.\n\n"
+            "❗ Не создавайте входные данные вручную.\n"
+            "❗ Используйте переменные text или data.\n\n"
             "Результат должен быть записан в переменную result."
         )
 
@@ -93,9 +103,7 @@ class MainWindow(QMainWindow):
     def generate_task(self):
         try:
             self.task = generate_task()
-            self.label_task.setText(self.task["task_text"])
-            self.text_solution.clear()
-        except Exception as e:
+        except Exception:
             QMessageBox.warning(
                 self,
                 "ML недоступна",
@@ -103,7 +111,31 @@ class MainWindow(QMainWindow):
                 "Используется резервная генерация заданий."
             )
             self.task = generate_task(use_ml=False)
-            self.label_task.setText(self.task["task_text"])
+
+        self._show_task()
+        self.text_solution.clear()
+
+    def _show_task(self):
+        """
+        Отображает задание ВМЕСТЕ с исходными данными
+        """
+        task_text = self.task["task_text"]
+        task_type = self.task["task_type"]
+        input_data = self.task.get("input_data", "")
+
+        # Формируем отображение входных данных
+        if task_type.startswith("text"):
+            data_block = f'text = "{input_data}"'
+        else:
+            data_block = f"data = {input_data}"
+
+        full_text = (
+            f"{task_text}\n\n"
+            f"Исходные данные:\n"
+            f"{data_block}"
+        )
+
+        self.label_task.setText(full_text)
 
     def check_solution(self):
         if not self.task:

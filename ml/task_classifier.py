@@ -1,30 +1,26 @@
-# task_classifier.py
+# ml/task_classifier.py
 # Автор: Федотова Анастасия Алексеевна
 # Тема ВКР:
 # «Автоматическая генерация и проверка учебных заданий по языку программирования Python
-#  с помощью нейронных сетей (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
+#  с помощью нейронных сетей
+#  (на примере ЧОУ ВО „Московский университет имени С.Ю. Витте“)»
 
 import os
 import joblib
 
 # ======================================================
-# ПУТИ К МОДЕЛЯМ
+# ПУТИ
 # ======================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
-
-MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
-
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 MODEL_PATH = os.path.join(MODELS_DIR, "model_task_classifier.pkl")
-VECTORIZER_PATH = os.path.join(MODELS_DIR, "task_vectorizer.pkl")
 
 # ======================================================
-# КЭШ ЗАГРУЗКИ
+# КЭШ
 # ======================================================
 
-_model = None
-_vectorizer = None
+_bundle = None
 
 
 # ======================================================
@@ -33,31 +29,32 @@ _vectorizer = None
 
 def load_model():
     """
-    Загружает обученную ML-модель и TF-IDF векторизатор.
+    Загружает обученную ML-модель и TF-IDF векторизатор
+    из одного файла model_task_classifier.pkl.
     Загрузка выполняется один раз (кэширование).
     """
 
-    global _model, _vectorizer
+    global _bundle
 
-    if _model is not None and _vectorizer is not None:
-        return _model, _vectorizer
+    if _bundle is not None:
+        return _bundle
 
     if not os.path.exists(MODEL_PATH):
         raise RuntimeError(
-            "Файл model_task_classifier.pkl не найден. "
-            "Сначала обучите модель в train_model.ipynb."
+            "Файл model_task_classifier.pkl не найден.\n"
+            "Необходимо выполнить обучение модели командой:\n"
+            "python train_model.py"
         )
 
-    if not os.path.exists(VECTORIZER_PATH):
+    _bundle = joblib.load(MODEL_PATH)
+
+    if "model" not in _bundle or "vectorizer" not in _bundle:
         raise RuntimeError(
-            "Файл task_vectorizer.pkl не найден. "
-            "Сначала обучите модель в train_model.ipynb."
+            "Файл модели имеет неверную структуру. "
+            "Ожидались ключи 'model' и 'vectorizer'."
         )
 
-    _model = joblib.load(MODEL_PATH)
-    _vectorizer = joblib.load(VECTORIZER_PATH)
-
-    return _model, _vectorizer
+    return _bundle
 
 
 # ======================================================
@@ -68,11 +65,12 @@ def classify_task(task_text: str) -> str:
     """
     Классифицирует текст учебного задания и возвращает его тип.
 
-    Пример результата:
-        'text_count'
-        'text_replace'
+    Примеры возвращаемых значений:
+        'text_count_words'
+        'text_remove_spaces'
         'list_sum'
-        'list_filter'
+        'list_reverse'
+        'strings_upper'
         'dict_sum'
         и т.д.
     """
@@ -80,12 +78,11 @@ def classify_task(task_text: str) -> str:
     if not isinstance(task_text, str) or not task_text.strip():
         raise ValueError("Текст задания пуст или имеет неверный формат")
 
-    model, vectorizer = load_model()
+    bundle = load_model()
+    vectorizer = bundle["vectorizer"]
+    model = bundle["model"]
 
-    # Векторизация текста
     X = vectorizer.transform([task_text])
-
-    # Предсказание класса
     predicted_class = model.predict(X)[0]
 
     return predicted_class

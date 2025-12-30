@@ -34,8 +34,8 @@ _tasks_cache: List[Dict[str, str]] = []
 def load_tasks() -> None:
     """
     Загружает задания из CSV-файла в память.
-    Формат CSV:
-        task_id, task_text
+    Ожидаемые колонки:
+        task_text
     """
 
     if _tasks_cache:
@@ -48,6 +48,7 @@ def load_tasks() -> None:
 
     with open(TASKS_FILE, encoding="utf-8") as f:
         reader = csv.DictReader(f)
+
         if "task_text" not in reader.fieldnames:
             raise RuntimeError(
                 "CSV-файл должен содержать колонку 'task_text'"
@@ -65,18 +66,82 @@ def load_tasks() -> None:
 
 
 # ======================================================
+# ГЕНЕРАЦИЯ ВХОДНЫХ ДАННЫХ ПО ТИПУ ЗАДАНИЯ
+# ======================================================
+
+def generate_input_data(task_type: str) -> str:
+    """
+    Генерирует входные данные в виде СТРОКИ
+    (для последующего ast.literal_eval).
+    """
+
+    # ---------- ТЕКСТ ----------
+    if task_type.startswith("text"):
+        texts = [
+            "Python это язык программирования",
+            "Анализ данных и машинное обучение",
+            "Программирование требует практики",
+            "Автоматическая проверка заданий",
+            "Разработка программных систем"
+        ]
+        return random.choice(texts)
+
+    # ---------- СПИСКИ ЧИСЕЛ ----------
+    if task_type in {
+        "list_sum",
+        "list_filter",
+        "list_transform",
+        "list_reverse"
+    }:
+        data = [random.randint(-5, 10) for _ in range(6)]
+        return str(data)
+
+    # ---------- СПИСКИ СТРОК ----------
+    if task_type in {
+        "list_unique_strings",
+        "list_strings_unique",
+        "list_strings_count"
+    }:
+        data = [
+            "яблоко",
+            "груша",
+            "яблоко",
+            "апельсин",
+            "груша"
+        ]
+        return str(data)
+
+    # ---------- СЛОВАРИ ----------
+    if task_type in {
+        "dict_sum",
+        "dict_avg",
+        "dict_prices_increase"
+    }:
+        data = {
+            "Хлеб": 50,
+            "Молоко": 80,
+            "Сыр": 300
+        }
+        return str(data)
+
+    # ---------- ЗАПАСНОЙ ВАРИАНТ ----------
+    return ""
+
+
+# ======================================================
 # ГЕНЕРАЦИЯ ЗАДАНИЯ
 # ======================================================
 
-def generate_task() -> Dict[str, str]:
+def generate_task(use_ml: bool = True) -> Dict[str, str]:
     """
     Выбирает случайное задание и определяет его тип
-    с помощью обученной ML-модели.
+    с помощью ML-модели (или резервной логики).
 
-    Возвращает словарь:
+    Возвращает:
     {
         "task_text": "...",
-        "task_type": "list_sum" | "text_count" | ...
+        "task_type": "...",
+        "input_data": "..."
     }
     """
 
@@ -85,12 +150,20 @@ def generate_task() -> Dict[str, str]:
     task = random.choice(_tasks_cache)
     task_text = task["task_text"]
 
-    # ML-классификация задания
-    task_type = classify_task(task_text)
+    # Определяем тип задания
+    if use_ml:
+        task_type = classify_task(task_text)
+    else:
+        # Резервная логика (на всякий случай)
+        task_type = "text_count"
+
+    # Генерируем входные данные
+    input_data = generate_input_data(task_type)
 
     return {
         "task_text": task_text,
-        "task_type": task_type
+        "task_type": task_type,
+        "input_data": input_data
     }
 
 
@@ -99,7 +172,10 @@ def generate_task() -> Dict[str, str]:
 # ======================================================
 
 if __name__ == "__main__":
-    task = generate_task()
-    print("Задание:")
-    print(task["task_text"])
-    print("\nТип задания:", task["task_type"])
+    for _ in range(5):
+        task = generate_task()
+        print("Задание:")
+        print(task["task_text"])
+        print("Тип:", task["task_type"])
+        print("Данные:", task["input_data"])
+        print("-" * 40)

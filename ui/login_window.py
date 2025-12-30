@@ -11,7 +11,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
-    QVBoxLayout, QMessageBox
+    QVBoxLayout, QHBoxLayout, QMessageBox, QFrame
 )
 from PyQt5.QtCore import Qt
 
@@ -25,35 +25,100 @@ class LoginWindow(QWidget):
         self.on_login_success = on_login_success
 
         self.setWindowTitle("Вход в систему")
-        self.setFixedSize(360, 220)
+        self.setFixedSize(420, 300)
 
         # Инициализация БД и пользователей
         init_system()
 
-        # ---------- UI ----------
-        self.label_title = QLabel("Интеллектуальный сервис\nпроверки заданий Python")
-        self.label_title.setAlignment(Qt.AlignCenter)
-        self.label_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        # =============================
+        # ЗАГОЛОВОК
+        # =============================
 
-        self.label_user = QLabel("Имя пользователя:")
+        self.label_title = QLabel("Интеллектуальный сервис")
+        self.label_title.setAlignment(Qt.AlignCenter)
+        self.label_title.setStyleSheet(
+            "font-size: 18px;"
+            "font-weight: bold;"
+        )
+
+        self.label_subtitle = QLabel(
+            "Автоматическая генерация и проверка\n"
+            "учебных заданий по Python"
+        )
+        self.label_subtitle.setAlignment(Qt.AlignCenter)
+        self.label_subtitle.setStyleSheet(
+            "font-size: 12px;"
+            "color: #555;"
+        )
+
+        # =============================
+        # РАЗДЕЛИТЕЛЬ
+        # =============================
+
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+
+        # =============================
+        # ПОЛЕ ВВОДА
+        # =============================
+
+        self.label_user = QLabel("Имя пользователя")
+        self.label_user.setStyleSheet("font-weight: bold;")
+
         self.input_user = QLineEdit()
         self.input_user.setPlaceholderText("student / teacher / admin")
+        self.input_user.setFixedHeight(32)
+
+        hint = QLabel(
+            "Пример:\n"
+            "student — студент\n"
+            "teacher — преподаватель\n"
+            "admin — администратор"
+        )
+        hint.setStyleSheet(
+            "font-size: 11px;"
+            "color: #666;"
+        )
+
+        # =============================
+        # КНОПКИ
+        # =============================
 
         self.btn_login = QPushButton("Войти")
+        self.btn_login.setFixedHeight(34)
+        self.btn_login.setStyleSheet(
+            "font-weight: bold;"
+        )
         self.btn_login.clicked.connect(self.handle_login)
 
         self.btn_exit = QPushButton("Выход")
+        self.btn_exit.setFixedHeight(30)
         self.btn_exit.clicked.connect(self.close)
 
-        # ---------- Layout ----------
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(self.btn_login)
+        btn_layout.addWidget(self.btn_exit)
+
+        # =============================
+        # ОСНОВНОЙ LAYOUT
+        # =============================
+
         layout = QVBoxLayout()
+        layout.setSpacing(10)
+
         layout.addWidget(self.label_title)
+        layout.addWidget(self.label_subtitle)
+        layout.addSpacing(5)
+        layout.addWidget(line)
         layout.addSpacing(10)
+
         layout.addWidget(self.label_user)
         layout.addWidget(self.input_user)
-        layout.addSpacing(10)
-        layout.addWidget(self.btn_login)
-        layout.addWidget(self.btn_exit)
+        layout.addWidget(hint)
+
+        layout.addSpacing(15)
+        layout.addLayout(btn_layout)
 
         self.setLayout(layout)
 
@@ -65,7 +130,11 @@ class LoginWindow(QWidget):
         username = self.input_user.text().strip()
 
         if not username:
-            QMessageBox.warning(self, "Ошибка", "Введите имя пользователя")
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Введите имя пользователя"
+            )
             return
 
         user = login(username)
@@ -74,9 +143,11 @@ class LoginWindow(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка входа",
-                "Пользователь не найден.\n"
+                "Пользователь не найден.\n\n"
                 "Доступные пользователи:\n"
-                "student, teacher, admin"
+                "• student\n"
+                "• teacher\n"
+                "• admin"
             )
             return
 
