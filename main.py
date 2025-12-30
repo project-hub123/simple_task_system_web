@@ -16,26 +16,37 @@ from ml.auth import init_system
 def main():
     """
     Точка входа десктопного приложения.
+    Обеспечивает вход, выход и смену пользователя.
     """
 
-    # Инициализация БД и системных пользователей
+    # Инициализация БД и пользователей
     init_system()
 
     app = QApplication(sys.argv)
 
-    main_window_ref = {"window": None}
+    windows = {}
 
+    # -------------------------------------------------
+    # Показ окна входа
+    # -------------------------------------------------
+    def show_login():
+        login_window = LoginWindow(on_login_success)
+        login_window.show()
+        windows["login"] = login_window
+
+    # -------------------------------------------------
+    # После успешного входа
+    # -------------------------------------------------
     def on_login_success(user: dict):
-        """
-        Открытие главного окна после входа пользователя
-        """
-        window = MainWindow(user)
-        window.show()
-        main_window_ref["window"] = window
+        main_window = MainWindow(
+            user=user,
+            on_logout=show_login
+        )
+        main_window.show()
+        windows["main"] = main_window
 
-    # Окно входа
-    login_window = LoginWindow(on_login_success)
-    login_window.show()
+    # Запуск с окна входа
+    show_login()
 
     sys.exit(app.exec_())
 

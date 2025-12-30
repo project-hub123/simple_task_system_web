@@ -1,11 +1,3 @@
-"""
-Автор: Федотова Анастасия Алексеевна
-Тема ВКР:
-Автоматическая генерация и проверка учебных заданий
-по языку программирования Python с помощью нейронных сетей
-(на примере ЧОУ ВО «Московский университет имени С.Ю. Витте»)
-"""
-
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QLabel, QTextEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox, QAction
@@ -18,10 +10,11 @@ from ml.database import save_result
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, user: dict):
+    def __init__(self, user: dict, on_logout):
         super().__init__()
 
         self.user = user
+        self.on_logout = on_logout
         self.task = None
 
         self.setWindowTitle(
@@ -39,6 +32,17 @@ class MainWindow(QMainWindow):
     def _create_menu(self):
         menu = self.menuBar()
 
+        file_menu = menu.addMenu("Файл")
+
+        logout_action = QAction("Сменить пользователя", self)
+        logout_action.triggered.connect(self.logout)
+
+        exit_action = QAction("Выход", self)
+        exit_action.triggered.connect(self.close)
+
+        file_menu.addAction(logout_action)
+        file_menu.addAction(exit_action)
+
         help_menu = menu.addMenu("Справка")
 
         about_action = QAction("О системе", self)
@@ -47,7 +51,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     # -------------------------------------------------
-    # ОСНОВНОЙ ИНТЕРФЕЙС
+    # UI
     # -------------------------------------------------
 
     def _create_ui(self):
@@ -89,12 +93,17 @@ class MainWindow(QMainWindow):
     def generate_task(self):
         try:
             self.task = generate_task()
+            self.label_task.setText(self.task["task_text"])
+            self.text_solution.clear()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
-            return
-
-        self.label_task.setText(self.task["task_text"])
-        self.text_solution.clear()
+            QMessageBox.warning(
+                self,
+                "ML недоступна",
+                "Модель классификации не найдена.\n"
+                "Используется резервная генерация заданий."
+            )
+            self.task = generate_task(use_ml=False)
+            self.label_task.setText(self.task["task_text"])
 
     def check_solution(self):
         if not self.task:
@@ -108,7 +117,6 @@ class MainWindow(QMainWindow):
             return
 
         result_text = predict(self.task, user_code)
-
         is_correct = result_text.startswith("✅")
 
         save_result(
@@ -123,6 +131,14 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Результат проверки", result_text)
 
     # -------------------------------------------------
+    # ВЫХОД
+    # -------------------------------------------------
+
+    def logout(self):
+        self.close()
+        self.on_logout()
+
+    # -------------------------------------------------
     # СПРАВКА
     # -------------------------------------------------
 
@@ -133,5 +149,5 @@ class MainWindow(QMainWindow):
             "Интеллектуальный сервис автоматической генерации\n"
             "и проверки учебных заданий по Python.\n\n"
             "Автор: Федотова Анастасия Алексеевна\n"
-            "ВКР, ЧОУ ВО «МУ им. С.Ю. Витте»"
+            "ВКР, МУ им. С.Ю. Витте"
         )
