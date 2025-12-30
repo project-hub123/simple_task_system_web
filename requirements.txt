@@ -1,25 +1,6 @@
-# ===== БАЗОВЫЕ БИБЛИОТЕКИ =====
-python-dateutil>=2.9.0
-pytz>=2024.1
-
-# ===== РАБОТА С ДАННЫМИ =====
-numpy>=1.26.0
-pandas>=2.1.0
-
-# ===== МАШИННОЕ ОБУЧЕНИЕ =====
-scikit-learn>=1.3.0
-joblib>=1.3.0
-
-# ===== АНАЛИЗ И ВИЗУАЛИЗАЦИЯ (для ноутбуков и отчёта) =====
-matplotlib>=3.8.0
-seaborn>=0.13.0
-
-# ===== JUPYTER / COLAB =====
-jupyter
-ipykernel
-
-# ===== ВЕБ-ИНТЕРФЕЙС (если используется Flask GUI) =====
-flask>=2.3.0
-
-# ===== ДОПОЛНИТЕЛЬНО =====
-tqdm>=4.66.0
+PyQt5
+sqlite3
+scikit-learn
+pandas
+numpy
+openpyxl

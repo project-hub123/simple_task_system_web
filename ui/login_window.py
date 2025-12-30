@@ -2,7 +2,7 @@
 Автор: Федотова Анастасия Алексеевна
 Тема ВКР:
 Автоматическая генерация и проверка учебных заданий
-по языку программирования Python с помощью нейронных сетей
+по языку программирования Python
 (на примере ЧОУ ВО «Московский университет имени С.Ю. Витте»)
 
 Назначение:
@@ -25,136 +25,78 @@ class LoginWindow(QWidget):
         self.on_login_success = on_login_success
 
         self.setWindowTitle("Вход в систему")
-        self.setFixedSize(420, 300)
+        self.setFixedSize(420, 340)
 
-        # Инициализация БД и пользователей
+        # Инициализация БД
         init_system()
-
-        # =============================
-        # ЗАГОЛОВОК
-        # =============================
 
         self.label_title = QLabel("Интеллектуальный сервис")
         self.label_title.setAlignment(Qt.AlignCenter)
-        self.label_title.setStyleSheet(
-            "font-size: 18px;"
-            "font-weight: bold;"
-        )
+        self.label_title.setStyleSheet("font-size: 18px; font-weight: bold;")
 
         self.label_subtitle = QLabel(
             "Автоматическая генерация и проверка\n"
             "учебных заданий по Python"
         )
         self.label_subtitle.setAlignment(Qt.AlignCenter)
-        self.label_subtitle.setStyleSheet(
-            "font-size: 12px;"
-            "color: #555;"
-        )
-
-        # =============================
-        # РАЗДЕЛИТЕЛЬ
-        # =============================
+        self.label_subtitle.setStyleSheet("font-size: 12px; color: #555;")
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
 
-        # =============================
-        # ПОЛЕ ВВОДА
-        # =============================
-
         self.label_user = QLabel("Имя пользователя")
-        self.label_user.setStyleSheet("font-weight: bold;")
-
         self.input_user = QLineEdit()
         self.input_user.setPlaceholderText("student / teacher / admin")
-        self.input_user.setFixedHeight(32)
 
-        hint = QLabel(
-            "Пример:\n"
-            "student — студент\n"
-            "teacher — преподаватель\n"
-            "admin — администратор"
-        )
-        hint.setStyleSheet(
-            "font-size: 11px;"
-            "color: #666;"
-        )
-
-        # =============================
-        # КНОПКИ
-        # =============================
+        self.label_pass = QLabel("Пароль")
+        self.input_pass = QLineEdit()
+        self.input_pass.setEchoMode(QLineEdit.Password)
+        self.input_pass.setPlaceholderText("Введите пароль")
 
         self.btn_login = QPushButton("Войти")
-        self.btn_login.setFixedHeight(34)
-        self.btn_login.setStyleSheet(
-            "font-weight: bold;"
-        )
         self.btn_login.clicked.connect(self.handle_login)
 
         self.btn_exit = QPushButton("Выход")
-        self.btn_exit.setFixedHeight(30)
         self.btn_exit.clicked.connect(self.close)
 
-        btn_layout = QHBoxLayout()
-        btn_layout.addWidget(self.btn_login)
-        btn_layout.addWidget(self.btn_exit)
-
-        # =============================
-        # ОСНОВНОЙ LAYOUT
-        # =============================
+        btns = QHBoxLayout()
+        btns.addWidget(self.btn_login)
+        btns.addWidget(self.btn_exit)
 
         layout = QVBoxLayout()
-        layout.setSpacing(10)
-
         layout.addWidget(self.label_title)
         layout.addWidget(self.label_subtitle)
-        layout.addSpacing(5)
         layout.addWidget(line)
-        layout.addSpacing(10)
-
         layout.addWidget(self.label_user)
         layout.addWidget(self.input_user)
-        layout.addWidget(hint)
-
-        layout.addSpacing(15)
-        layout.addLayout(btn_layout)
+        layout.addWidget(self.label_pass)
+        layout.addWidget(self.input_pass)
+        layout.addSpacing(10)
+        layout.addLayout(btns)
 
         self.setLayout(layout)
 
     # -------------------------------------------------
-    # ЛОГИКА ВХОДА
-    # -------------------------------------------------
 
     def handle_login(self):
         username = self.input_user.text().strip()
+        password = self.input_pass.text().strip()
 
-        if not username:
-            QMessageBox.warning(
-                self,
-                "Ошибка",
-                "Введите имя пользователя"
-            )
+        if not username or not password:
+            QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")
             return
 
-        user = login(username)
+        user = login(username, password)
 
         if not user:
-            QMessageBox.critical(
-                self,
-                "Ошибка входа",
-                "Пользователь не найден.\n\n"
-                "Доступные пользователи:\n"
-                "• student\n"
-                "• teacher\n"
-                "• admin"
-            )
+            QMessageBox.critical(self, "Ошибка входа", "Неверный логин или пароль")
             return
 
         QMessageBox.information(
             self,
             "Успешный вход",
-            f"Вы вошли как:\n{user['username']} ({user['role']})"
+            f"Вы вошли как {user['username']} ({user['role']})"
         )
 
         self.on_login_success(user)

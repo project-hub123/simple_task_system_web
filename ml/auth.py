@@ -2,70 +2,102 @@
 Автор: Федотова Анастасия Алексеевна
 Тема ВКР:
 Автоматическая генерация и проверка учебных заданий
-по языку программирования Python с помощью нейронных сетей
+по языку программирования Python
 (на примере ЧОУ ВО «Московский университет имени С.Ю. Витте»)
 
 Назначение:
-Модуль аутентификации и управления пользователями.
-Используется в десктопном приложении (PyQt5).
+Аутентификация и управление пользователями.
 """
+
+import hashlib
 
 from ml.database import (
     init_db,
-    add_user,
-    get_user,
-    get_all_users
+    get_connection
 )
+
+# -------------------------------------------------
+# ВСПОМОГАТЕЛЬНОЕ
+# -------------------------------------------------
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
 
 # -------------------------------------------------
 # ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ
 # -------------------------------------------------
 
 def init_system():
-    """
-    Инициализация БД и создание пользователей по умолчанию.
-    Вызывается при запуске приложения.
-    """
     init_db()
 
-    # Пользователи по умолчанию (для демонстрации ВКР)
-    add_user("student", "student")
-    add_user("teacher", "teacher")
-    add_user("admin", "admin")
+    # пользователи по умолчанию
+    register_user("student", "student", "student123")
+    register_user("teacher", "teacher", "teacher123")
+    register_user("admin", "admin", "admin123")
 
 
 # -------------------------------------------------
-# АУТЕНТИФИКАЦИЯ
+# РЕГИСТРАЦИЯ
 # -------------------------------------------------
 
-def login(username: str):
-    """
-    Простейшая аутентификация по имени пользователя.
-    (без паролей — допустимо для учебной системы)
-    """
-    if not username:
+def register_user(username: str, role: str, password: str):
+    if not username or not password:
+        raise ValueError("Пустые данные")
+
+    if role not in ("student", "teacher", "admin"):
+        raise ValueError("Некорректная роль")
+
+    password_hash = hash_password(password)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT OR IGNORE INTO users (username, password_hash, role)
+        VALUES (?, ?, ?)
+    """, (username, password_hash, role))
+    conn.commit()
+    conn.close()
+
+
+# -------------------------------------------------
+# ВХОД
+# -------------------------------------------------
+
+def login(username: str, password: str):
+    if not username or not password:
         return None
 
-    user = get_user(username)
-    return user
+    password_hash = hash_password(password)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT username, role
+        FROM users
+        WHERE username = ? AND password_hash = ?
+    """, (username, password_hash))
+
+    row = cur.fetchone()
+    conn.close()
+
+    if row:
+        return {"username": row[0], "role": row[1]}
+    return None
 
 
 # -------------------------------------------------
-# УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
+# СПИСОК ПОЛЬЗОВАТЕЛЕЙ (АДМИН)
 # -------------------------------------------------
-
-def register_user(username: str, role: str):
-    """
-    Регистрация нового пользователя (администратор).
-    """
-    if not username or role not in ("student", "teacher", "admin"):
-        raise ValueError("Некорректные данные пользователя")
-
-    add_user(username, role)
-
 
 def list_users():
-    """
-    Получение списка всех пользователей.
-    """
-    return get_all_users()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT username, role
+        FROM users
+        ORDER BY username
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return [{"username": r[0], "role": r[1]} for r in rows]
