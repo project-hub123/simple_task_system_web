@@ -1,15 +1,3 @@
-"""
-Автор: Федотова Анастасия Алексеевна
-Тема ВКР:
-Автоматическая генерация и проверка учебных заданий
-по языку программирования Python
-(на примере ЧОУ ВО «Московский университет имени С.Ю. Витте»)
-
-Назначение:
-Модуль работы с локальной БД SQLite.
-Хранение пользователей, ролей, заданий и результатов.
-"""
-
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -30,7 +18,6 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    # USERS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +27,6 @@ def init_db():
         )
     """)
 
-    # RESULTS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +40,6 @@ def init_db():
         )
     """)
 
-    # LOGS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +65,22 @@ def add_user(username: str, password_hash: str, role: str):
     """, (username, password_hash, role))
     conn.commit()
     conn.close()
+
+
+# 🔥 ДОБАВЛЕНО: упрощённое добавление (для админа)
+def add_user_simple(username: str, role: str):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO users (username, password_hash, role)
+        VALUES (?, ?, ?)
+    """, (username, "", role))
+
+    conn.commit()
+    conn.close()
+
+    add_log(f"Добавлен пользователь {username} с ролью {role}")
 
 
 def get_user(username: str):
@@ -112,6 +113,7 @@ def get_all_users():
     """)
     rows = cur.fetchall()
     conn.close()
+
     return [{"username": r[0], "role": r[1]} for r in rows]
 
 
@@ -163,7 +165,7 @@ def get_results_by_user(username):
 
 
 # -------------------------------------------------
-# СТАТИСТИКА (ПРЕПОДАВАТЕЛЬ)
+# СТАТИСТИКА
 # -------------------------------------------------
 
 def get_students_statistics():
@@ -189,7 +191,7 @@ def get_students_statistics():
 
 
 # -------------------------------------------------
-# ЛОГИ (АДМИН)
+# ЛОГИ
 # -------------------------------------------------
 
 def add_log(message: str):
@@ -213,4 +215,5 @@ def get_logs():
     """)
     rows = cur.fetchall()
     conn.close()
+
     return [{"message": r[0], "timestamp": r[1]} for r in rows]
