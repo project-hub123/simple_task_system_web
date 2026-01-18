@@ -1,6 +1,11 @@
 import sqlite3
+import hashlib
 from datetime import datetime
 from pathlib import Path
+
+# -------------------------------------------------
+# ПУТЬ К БАЗЕ ДАННЫХ
+# -------------------------------------------------
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "system.db"
 
@@ -8,6 +13,10 @@ DB_PATH = Path(__file__).resolve().parent.parent / "data" / "system.db"
 def get_connection():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     return sqlite3.connect(DB_PATH)
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 # -------------------------------------------------
@@ -18,15 +27,18 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
+    # пользователи
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL
+            role TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1
         )
     """)
 
+    # результаты выполнения заданий
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,10 +52,12 @@ def init_db():
         )
     """)
 
+    # журнал действий администратора
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS logs (
+        CREATE TABLE IF NOT EXISTS admin_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message TEXT NOT NULL,
+            admin TEXT NOT NULL,
+            action TEXT NOT NULL,
             timestamp TEXT NOT NULL
         )
     """)
@@ -56,41 +70,72 @@ def init_db():
 # ПОЛЬЗОВАТЕЛИ
 # -------------------------------------------------
 
-def add_user(username: str, password_hash: str, role: str):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT OR IGNORE INTO users (username, password_hash, role)
-        VALUES (?, ?, ?)
-    """, (username, password_hash, role))
-    conn.commit()
-    conn.close()
+def add_user(username: str, password: str, role: str):
+    password_hash = hash_password(password)
 
-
-# 🔥 ДОБАВЛЕНО: упрощённое добавление (для админа)
-def add_user_simple(username: str, role: str):
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
         INSERT INTO users (username, password_hash, role)
         VALUES (?, ?, ?)
-    """, (username, "", role))
+    """, (username, password_hash, role))
 
     conn.commit()
     conn.close()
 
-    add_log(f"Добавлен пользователь {username} с ролью {role}")
+
+def update_user_password(username: str, new_password: str):
+    password_hash = hash_password(new_password)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE users
+        SET password_hash = ?
+        WHERE username = ?
+    """, (password_hash, username))
+
+    conn.commit()
+    conn.close()
+
+
+def set_user_active(username: str):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT is_active FROM users WHERE username = ?
+    """, (username,))
+    row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        return
+
+    new_status = 0 if row[0] else 1
+
+    cur.execute("""
+        UPDATE users
+        SET is_active = ?
+        WHERE username = ?
+    """, (new_status, username))
+
+    conn.commit()
+    conn.close()
 
 
 def get_user(username: str):
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
-        SELECT username, password_hash, role
+        SELECT username, password_hash, role, is_active
         FROM users
         WHERE username = ?
     """, (username,))
+
     row = cur.fetchone()
     conn.close()
 
@@ -98,7 +143,8 @@ def get_user(username: str):
         return {
             "username": row[0],
             "password_hash": row[1],
-            "role": row[2]
+            "role": row[2],
+            "is_active": bool(row[3])
         }
     return None
 
@@ -106,15 +152,50 @@ def get_user(username: str):
 def get_all_users():
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
-        SELECT username, role
+        SELECT username, role, is_active
         FROM users
         ORDER BY username
     """)
+
     rows = cur.fetchall()
     conn.close()
 
-    return [{"username": r[0], "role": r[1]} for r in rows]
+    return [{
+        "username": r[0],
+        "role": r[1],
+        "is_active": bool(r[2])
+    } for r in rows]
+
+
+# -------------------------------------------------
+# АУТЕНТИФИКАЦИЯ
+# -------------------------------------------------
+
+def authenticate(username: str, password: str):
+    password_hash = hash_password(password)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT username, role
+        FROM users
+        WHERE username = ?
+          AND password_hash = ?
+          AND is_active = 1
+    """, (username, password_hash))
+
+    row = cur.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "username": row[0],
+            "role": row[1]
+        }
+    return None
 
 
 # -------------------------------------------------
@@ -124,6 +205,7 @@ def get_all_users():
 def save_result(username, task_text, task_type, user_code, is_correct, feedback):
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
         INSERT INTO results (
             username, task_text, task_type,
@@ -139,6 +221,7 @@ def save_result(username, task_text, task_type, user_code, is_correct, feedback)
         feedback,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
+
     conn.commit()
     conn.close()
 
@@ -146,12 +229,14 @@ def save_result(username, task_text, task_type, user_code, is_correct, feedback)
 def get_results_by_user(username):
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
         SELECT task_text, task_type, is_correct, feedback, timestamp
         FROM results
         WHERE username = ?
         ORDER BY timestamp DESC
     """, (username,))
+
     rows = cur.fetchall()
     conn.close()
 
@@ -171,6 +256,7 @@ def get_results_by_user(username):
 def get_students_statistics():
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
         SELECT username,
                COUNT(*) AS attempts,
@@ -179,6 +265,7 @@ def get_students_statistics():
         FROM results
         GROUP BY username
     """)
+
     rows = cur.fetchall()
     conn.close()
 
@@ -191,29 +278,41 @@ def get_students_statistics():
 
 
 # -------------------------------------------------
-# ЛОГИ
+# ЖУРНАЛ ДЕЙСТВИЙ АДМИНА
 # -------------------------------------------------
 
-def add_log(message: str):
+def log_admin_action(admin: str, action: str):
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
-        INSERT INTO logs (message, timestamp)
-        VALUES (?, ?)
-    """, (message, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        INSERT INTO admin_log (admin, action, timestamp)
+        VALUES (?, ?, ?)
+    """, (
+        admin,
+        action,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
     conn.commit()
     conn.close()
 
 
-def get_logs():
+def get_admin_logs():
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
-        SELECT message, timestamp
-        FROM logs
-        ORDER BY timestamp DESC
+        SELECT admin, action, timestamp
+        FROM admin_log
+        ORDER BY id DESC
     """)
+
     rows = cur.fetchall()
     conn.close()
 
-    return [{"message": r[0], "timestamp": r[1]} for r in rows]
+    return [{
+        "admin": r[0],
+        "action": r[1],
+        "timestamp": r[2]
+    } for r in rows]
