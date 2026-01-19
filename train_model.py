@@ -4,28 +4,33 @@
 import os
 import requests
 import pandas as pd
-import joblib
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
+from ml.model_service import save_model
+
+
+# -------------------------------------------------
+# Пути и константы
+# -------------------------------------------------
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 DATA_DIR = os.path.join(BASE_DIR, "data")
-MODEL_DIR = os.path.join(BASE_DIR, "ml", "models")
-
 DATA_PATH = os.path.join(DATA_DIR, "train_data.csv")
-MODEL_PATH = os.path.join(MODEL_DIR, "model_task_classifier.pkl")
 
 DATA_URL = "https://raw.githubusercontent.com/example-repo/datasets/main/train_data.csv"
 
 REQUIRED_COLUMNS = {"task_text", "task_type"}
 
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(MODEL_DIR, exist_ok=True)
 
+
+# -------------------------------------------------
+# Работа с датасетом
+# -------------------------------------------------
 
 def download_dataset(url: str, save_path: str):
     print("Локальный датасет не найден. Загрузка по ссылке...")
@@ -40,7 +45,7 @@ def validate_dataset(df: pd.DataFrame):
     missing = REQUIRED_COLUMNS - set(df.columns)
     if missing:
         raise ValueError(
-            f"Некорректная структура датасета. "
+            "Некорректная структура датасета. "
             f"Отсутствуют обязательные колонки: {', '.join(missing)}"
         )
 
@@ -54,6 +59,10 @@ def load_dataset() -> pd.DataFrame:
     return df
 
 
+# -------------------------------------------------
+# Обучение модели
+# -------------------------------------------------
+
 def main():
     print("Загрузка обучающего датасета...")
     df = load_dataset()
@@ -62,7 +71,9 @@ def main():
     y = df["task_type"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y,
+        test_size=0.2,
+        random_state=42
     )
 
     print("Векторизация текста...")
@@ -81,16 +92,17 @@ def main():
     print("Оценка качества модели...")
     y_pred = model.predict(X_test_vec)
     accuracy = accuracy_score(y_test, y_pred)
-    print("Accuracy:", accuracy)
+    print(f"Accuracy: {accuracy:.4f}")
 
-    print("Сохранение модели...")
-    joblib.dump(
-        {"vectorizer": vectorizer, "model": model},
-        MODEL_PATH
-    )
+    print("Сохранение обученной модели...")
+    save_model({
+        "vectorizer": vectorizer,
+        "model": model,
+        "accuracy": accuracy
+    })
 
     print("ГОТОВО.")
-    print("Модель сохранена в:", MODEL_PATH)
+    print("Модель обучена и сохранена.")
 
 
 if __name__ == "__main__":

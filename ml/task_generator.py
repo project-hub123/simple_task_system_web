@@ -28,9 +28,9 @@ def load_tasks() -> None:
     Загружает задания из CSV-файла в память.
 
     Ожидаемые колонки:
-        task_text
-        task_type
-        input_data
+        task_text   — текст задания
+        task_type   — тип задания из датасета
+        input_data  — входные данные
     """
 
     if _tasks_cache:
@@ -50,9 +50,9 @@ def load_tasks() -> None:
             )
 
         for row in reader:
-            task_text = row["task_text"].strip()
-            task_type = row["task_type"].strip()
-            input_data = row["input_data"].strip()
+            task_text = row.get("task_text", "").strip()
+            task_type = row.get("task_type", "").strip()
+            input_data = row.get("input_data", "").strip()
 
             if task_text and task_type:
                 _tasks_cache.append({
@@ -62,7 +62,7 @@ def load_tasks() -> None:
                 })
 
     if not _tasks_cache:
-        raise RuntimeError("Файл с заданиями пуст")
+        raise RuntimeError("Файл с заданиями пуст или содержит некорректные данные")
 
 # ======================================================
 # ГЕНЕРАЦИЯ ЗАДАНИЯ
@@ -92,6 +92,6 @@ if __name__ == "__main__":
         task = generate_task()
         print("Задание:")
         print(task["task_text"])
-        print("Тип:", task["task_type"])
+        print("Тип задания:", task["task_type"])
         print("Входные данные:", task["input_data"])
         print("-" * 50)
