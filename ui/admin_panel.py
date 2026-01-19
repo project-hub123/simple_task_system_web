@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QHBoxLayout, QLineEdit,
     QPushButton, QMessageBox, QComboBox,
-    QFileDialog
+    QFileDialog, QInputDialog
 )
 from PyQt5.QtCore import Qt
 
@@ -10,7 +10,6 @@ import os
 import shutil
 import subprocess
 import pandas as pd
-from datetime import datetime
 
 from ml.database import (
     get_all_users,
@@ -26,9 +25,11 @@ from ml.database import (
 # -----------------------------
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 DATASET_PATH = os.path.join(DATA_DIR, "train_data.csv")
-TRAIN_SCRIPT = os.path.join(BASE_DIR, "train_model.py")
+TRAIN_SCRIPT = os.path.join(PROJECT_ROOT, "train_model.py")
 
 REQUIRED_COLUMNS = {"task_text", "task_type"}
 
@@ -183,19 +184,26 @@ class AdminPanel(QWidget):
             QMessageBox.warning(self, "Ошибка", "Выберите пользователя")
             return
 
-        new_password, ok = QFileDialog.getText(
-            self, "Сброс пароля", "Введите новый пароль:"
+        new_password, ok = QInputDialog.getText(
+            self,
+            "Сброс пароля",
+            f"Введите новый пароль для пользователя '{username}':",
+            QLineEdit.Password
         )
-        if not ok or not new_password:
+
+        if not ok or not new_password.strip():
             return
 
-        update_user_password(username, new_password)
-        log_admin_action(
-            self.admin_username,
-            f"Сброшен пароль пользователя {username}"
-        )
-        self.load_logs()
-        QMessageBox.information(self, "Готово", "Пароль обновлён")
+        try:
+            update_user_password(username, new_password)
+            log_admin_action(
+                self.admin_username,
+                f"Сброшен пароль пользователя {username}"
+            )
+            self.load_logs()
+            QMessageBox.information(self, "Готово", "Пароль обновлён")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
 
     def toggle_active(self):
         username = self.get_selected_user()
