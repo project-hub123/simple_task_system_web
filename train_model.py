@@ -2,11 +2,13 @@
 # Автор: Федотова Анастасия Алексеевна
 
 import os
+import json
 import requests
 import pandas as pd
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
@@ -19,13 +21,17 @@ from ml.model_service import save_model
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+MODEL_DIR = os.path.join(BASE_DIR, "ml", "models")
+
 DATA_PATH = os.path.join(DATA_DIR, "train_data.csv")
+METRICS_PATH = os.path.join(MODEL_DIR, "metrics.json")
 
 DATA_URL = "https://raw.githubusercontent.com/example-repo/datasets/main/train_data.csv"
 
 REQUIRED_COLUMNS = {"task_text", "task_type"}
 
 os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 
 # -------------------------------------------------
@@ -60,7 +66,7 @@ def load_dataset() -> pd.DataFrame:
 
 
 # -------------------------------------------------
-# Обучение модели
+# Обучение и сравнение моделей
 # -------------------------------------------------
 
 def main():
@@ -85,24 +91,64 @@ def main():
     X_train_vec = vectorizer.fit_transform(X_train)
     X_test_vec = vectorizer.transform(X_test)
 
-    print("Обучение модели...")
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train_vec, y_train)
+    # -------------------------------------------------
+    # Набор моделей
+    # -------------------------------------------------
 
-    print("Оценка качества модели...")
-    y_pred = model.predict(X_test_vec)
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy:.4f}")
+    models = {
+        "LogisticRegression": LogisticRegression(max_iter=1000),
+        "MultinomialNB": MultinomialNB()
+    }
 
-    print("Сохранение обученной модели...")
+    metrics = {}
+    best_model_name = None
+    best_accuracy = 0.0
+    best_model = None
+
+    print("Обучение и оценка моделей...")
+
+    for name, model in models.items():
+        print(f"Обучение модели: {name}")
+        model.fit(X_train_vec, y_train)
+
+        y_pred = model.predict(X_test_vec)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        metrics[name] = {
+            "accuracy": accuracy
+        }
+
+        print(f"{name} accuracy: {accuracy:.4f}")
+
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            best_model_name = name
+            best_model = model
+
+    # -------------------------------------------------
+    # Сохранение метрик
+    # -------------------------------------------------
+
+    with open(METRICS_PATH, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=4, ensure_ascii=False)
+
+    print("Метрики сохранены в:", METRICS_PATH)
+
+    # -------------------------------------------------
+    # Сохранение лучшей модели
+    # -------------------------------------------------
+
+    print(f"Лучшая модель: {best_model_name} (accuracy={best_accuracy:.4f})")
+
     save_model({
         "vectorizer": vectorizer,
-        "model": model,
-        "accuracy": accuracy
+        "model": best_model,
+        "model_name": best_model_name,
+        "accuracy": best_accuracy
     })
 
     print("ГОТОВО.")
-    print("Модель обучена и сохранена.")
+    print("Лучшая модель обучена и сохранена.")
 
 
 if __name__ == "__main__":
