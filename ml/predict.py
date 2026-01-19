@@ -50,7 +50,7 @@ def predict(task: dict, solution_text: str) -> str:
 
     task_text = task.get("task_text", "")
     expected_task_type = task.get("task_type")
-    input_data = task.get("input_data", "")
+    input_data = task.get("input_data")
 
     if not task_text:
         return "⚠ Ошибка: текст задания отсутствует"
@@ -65,18 +65,27 @@ def predict(task: dict, solution_text: str) -> str:
         return f"⚠ Ошибка определения типа задания: {e}"
 
     # -------------------------------
-    # Сопоставление с типом из задания
+    # ЖЁСТКАЯ ЗАЩИТА ПО ТИПУ ДАННЫХ
     # -------------------------------
 
-    if expected_task_type and expected_task_type != predicted_task_type:
-        task_type = predicted_task_type
+    task_type = predicted_task_type
+    type_info = f"Тип задания определён моделью: {predicted_task_type}"
+
+    # если входные данные — список строк,
+    # запрещаем любые суммирования
+    if isinstance(input_data, list) and all(isinstance(x, str) for x in input_data):
+        task_type = "list_filter_len_gt_3"
         type_info = (
-            f"Тип задания скорректирован моделью "
-            f"(ожидался: {expected_task_type}, определён: {predicted_task_type})"
+            "Тип задания определён по структуре входных данных "
+            "(список строк)"
         )
-    else:
-        task_type = predicted_task_type
-        type_info = f"Тип задания определён моделью: {predicted_task_type}"
+
+    # если тип явно задан в задании и не противоречит данным — используем его
+    elif expected_task_type:
+        task_type = expected_task_type
+        type_info = (
+            f"Тип задания взят из описания задания: {expected_task_type}"
+        )
 
     # -------------------------------
     # Проверка решения
