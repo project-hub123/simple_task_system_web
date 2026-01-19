@@ -138,6 +138,14 @@ def toggle_user_active(username: str):
     conn.close()
 
 
+# --- АЛИАС ДЛЯ UI (ВАЖНО) ---
+def set_user_active(username: str):
+    """
+    Алиас для admin_panel.py.
+    """
+    toggle_user_active(username)
+
+
 def get_user(username: str):
     conn = get_connection()
     cur = conn.cursor()
