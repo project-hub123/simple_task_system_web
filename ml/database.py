@@ -15,6 +15,10 @@ def get_connection():
     return sqlite3.connect(DB_PATH)
 
 
+# -------------------------------------------------
+# ХЕШИРОВАНИЕ ПАРОЛЯ
+# -------------------------------------------------
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
@@ -27,7 +31,7 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    # пользователи
+    # Пользователи
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +42,7 @@ def init_db():
         )
     """)
 
-    # результаты выполнения заданий
+    # Результаты выполнения заданий
     cur.execute("""
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +56,7 @@ def init_db():
         )
     """)
 
-    # журнал действий администратора
+    # Журнал действий администратора
     cur.execute("""
         CREATE TABLE IF NOT EXISTS admin_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,6 +90,10 @@ def add_user(username: str, password: str, role: str):
 
 
 def update_user_password(username: str, new_password: str):
+    """
+    Сброс пароля пользователя.
+    Пароль передаётся в открытом виде и хешируется внутри функции.
+    """
     password_hash = hash_password(new_password)
 
     conn = get_connection()
@@ -97,11 +105,15 @@ def update_user_password(username: str, new_password: str):
         WHERE username = ?
     """, (password_hash, username))
 
+    if cur.rowcount == 0:
+        conn.close()
+        raise ValueError("Пользователь не найден")
+
     conn.commit()
     conn.close()
 
 
-def set_user_active(username: str):
+def toggle_user_active(username: str):
     conn = get_connection()
     cur = conn.cursor()
 
@@ -112,7 +124,7 @@ def set_user_active(username: str):
 
     if not row:
         conn.close()
-        return
+        raise ValueError("Пользователь не найден")
 
     new_status = 0 if row[0] else 1
 
@@ -278,7 +290,7 @@ def get_students_statistics():
 
 
 # -------------------------------------------------
-# ЖУРНАЛ ДЕЙСТВИЙ АДМИНА
+# ЖУРНАЛ ДЕЙСТВИЙ АДМИНИСТРАТОРА
 # -------------------------------------------------
 
 def log_admin_action(admin: str, action: str):
