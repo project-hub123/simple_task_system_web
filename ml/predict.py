@@ -22,9 +22,6 @@ def _get_model():
 
 
 def _predict_task_type(task_text: str) -> str:
-    """
-    Определение типа задания с помощью обученной модели.
-    """
     model_data = _get_model()
 
     vectorizer = model_data["vectorizer"]
@@ -40,18 +37,8 @@ def _predict_task_type(task_text: str) -> str:
 
 def predict(task: dict, solution_text: str) -> str:
     """
-    Основная точка проверки решения пользователя.
-
-    task — словарь вида:
-    {
-        "task_text": "...",
-        "task_type": "...",   
-        "input_data": "..."
-    }
-
-    solution_text — код пользователя (строкой)
-
-    Возвращает строку с результатом проверки.
+    Проверка решения пользователя с использованием модели
+    машинного обучения для определения типа задания.
     """
 
     # -------------------------------
@@ -69,7 +56,7 @@ def predict(task: dict, solution_text: str) -> str:
         return "⚠ Ошибка: текст задания отсутствует"
 
     # -------------------------------
-    # Определение типа задания (ML)
+    # Определение типа задания моделью
     # -------------------------------
 
     try:
@@ -78,14 +65,18 @@ def predict(task: dict, solution_text: str) -> str:
         return f"⚠ Ошибка определения типа задания: {e}"
 
     # -------------------------------
-    # Использование task_type ОСМЫСЛЕННО
+    # Сопоставление с типом из задания
     # -------------------------------
 
     if expected_task_type and expected_task_type != predicted_task_type:
-        # при расхождении приоритет у модели
         task_type = predicted_task_type
+        type_info = (
+            f"Тип задания скорректирован моделью "
+            f"(ожидался: {expected_task_type}, определён: {predicted_task_type})"
+        )
     else:
         task_type = predicted_task_type
+        type_info = f"Тип задания определён моделью: {predicted_task_type}"
 
     # -------------------------------
     # Проверка решения
@@ -104,7 +95,9 @@ def predict(task: dict, solution_text: str) -> str:
     # Формирование ответа
     # -------------------------------
 
-    if ok:
-        return "✅ " + message
-    else:
-        return "❌ " + message
+    prefix = "✅" if ok else "❌"
+
+    return (
+        f"{prefix} {message}\n"
+        f"{type_info}"
+    )
