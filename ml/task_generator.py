@@ -31,7 +31,7 @@ vectorizer = clf_data["vectorizer"]
 classifier = clf_data["model"]
 
 # ======================================================
-# ГЕНЕРАЦИЯ ТЕКСТА
+# ГЕНЕРАЦИЯ ТЕКСТА ФОРМУЛИРОВКИ
 # ======================================================
 
 def generate_text(min_words=5, max_words=15) -> str:
@@ -58,31 +58,31 @@ def generate_text(min_words=5, max_words=15) -> str:
 # ======================================================
 
 def generate_input_data(task_type: str) -> str:
-    if task_type == "list_sum":
+    # ----- СПИСКИ ЧИСЕЛ -----
+    if task_type in {"list_sum", "list_even", "list_sort", "list_square"}:
         data = [random.randint(1, 20) for _ in range(8)]
         return f"Список чисел: {data}"
 
-    if task_type == "list_even":
-        data = [random.randint(1, 30) for _ in range(10)]
-        return f"Список чисел: {data}"
-
-    if task_type == "list_sort":
-        data = [random.randint(1, 50) for _ in range(7)]
-        return f"Список чисел: {data}"
-
+    # ----- СПИСКИ СТРОК -----
     if task_type == "list_strings":
-        data = ["яблоко", "груша", "слива", "банан"]
+        data = ["яблоко", "груша", "слива", "банан", "апельсин"]
         random.shuffle(data)
         return f"Список строк: {data}"
 
-    if task_type == "list_square":
-        data = [random.randint(1, 15) for _ in range(6)]
-        return f"Список чисел: {data}"
+    # ----- ТЕКСТОВЫЕ ЗАДАНИЯ -----
+    if task_type in {"text_chars", "text_words"}:
+        texts = [
+            "Программирование на Python",
+            "Анализ данных и машинное обучение",
+            "Разработка информационных систем"
+        ]
+        return f"Строка текста: \"{random.choice(texts)}\""
 
-    return ""
+    # ----- УНИВЕРСАЛЬНЫЙ ЗАПАСНОЙ ВАРИАНТ -----
+    return "Входные данные определяются пользователем самостоятельно."
 
 # ======================================================
-# ОСНОВНАЯ ГЕНЕРАЦИЯ ЗАДАНИЯ
+# ОСНОВНАЯ ФУНКЦИЯ
 # ======================================================
 
 def generate_task() -> Dict[str, str]:
@@ -102,7 +102,7 @@ def generate_task() -> Dict[str, str]:
     }
 
 # ======================================================
-# ЛОКАЛЬНЫЙ ТЕСТ
+# ЛОКАЛЬНЫЙ ЗАПУСК
 # ======================================================
 
 if __name__ == "__main__":
