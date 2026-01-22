@@ -4,20 +4,20 @@ import random
 import sys
 from typing import Dict
 
+# ======================================================
+# НАСТРОЙКА ПУТЕЙ
+# ======================================================
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
 from ml.model_service import load_model
 
-# ======================================================
-# ПУТИ
-# ======================================================
-
 MODEL_PATH = os.path.join(BASE_DIR, "models", "text_ngram.pkl")
 
 if not os.path.exists(MODEL_PATH):
-    raise RuntimeError("Сначала запустите ml/text_model.py")
+    raise RuntimeError("Сначала необходимо запустить ml/text_model.py")
 
 # ======================================================
 # ЗАГРУЗКА МОДЕЛЕЙ
@@ -31,10 +31,24 @@ vectorizer = clf_data["vectorizer"]
 classifier = clf_data["model"]
 
 # ======================================================
-# ГЕНЕРАЦИЯ ТЕКСТА ФОРМУЛИРОВКИ
+# СООТВЕТСТВИЕ ТИПА ЗАДАНИЯ ПРЕДМЕТНОЙ ОБЛАСТИ
 # ======================================================
 
-def generate_text(min_words=5, max_words=15) -> str:
+TASK_DOMAIN = {
+    "list_sum": "numbers",
+    "list_even": "numbers",
+    "list_sort": "numbers",
+    "list_square": "numbers",
+    "list_strings": "strings",
+    "text_chars": "text",
+    "text_words": "text"
+}
+
+# ======================================================
+# ГЕНЕРАЦИЯ ТЕКСТА ФОРМУЛИРОВКИ (языковая модель)
+# ======================================================
+
+def generate_text(min_words: int = 5, max_words: int = 15) -> str:
     start = random.choice(list(ngram_model.keys()))
     words = [start[0], start[1]]
 
@@ -51,38 +65,35 @@ def generate_text(min_words=5, max_words=15) -> str:
     text = " ".join(words).strip()
     if not text.endswith("."):
         text += "."
+
     return text
 
 # ======================================================
-# ГЕНЕРАЦИЯ ВХОДНЫХ ДАННЫХ ПО ТИПУ
+# ГЕНЕРАЦИЯ ВХОДНЫХ ДАННЫХ
 # ======================================================
 
-def generate_input_data(task_type: str) -> str:
-    # ----- СПИСКИ ЧИСЕЛ -----
-    if task_type in {"list_sum", "list_even", "list_sort", "list_square"}:
+def generate_input_data(task_type: str, domain: str) -> str:
+    if domain == "numbers":
         data = [random.randint(1, 20) for _ in range(8)]
-        return f"Список чисел: {data}"
+        return f"data = Список чисел: {data}"
 
-    # ----- СПИСКИ СТРОК -----
-    if task_type == "list_strings":
+    if domain == "strings":
         data = ["яблоко", "груша", "слива", "банан", "апельсин"]
         random.shuffle(data)
-        return f"Список строк: {data}"
+        return f"data = Список строк: {data}"
 
-    # ----- ТЕКСТОВЫЕ ЗАДАНИЯ -----
-    if task_type in {"text_chars", "text_words"}:
+    if domain == "text":
         texts = [
             "Программирование на Python",
             "Анализ данных и машинное обучение",
             "Разработка информационных систем"
         ]
-        return f"Строка текста: \"{random.choice(texts)}\""
+        return f'data = Строка текста: "{random.choice(texts)}"'
 
-    # ----- УНИВЕРСАЛЬНЫЙ ЗАПАСНОЙ ВАРИАНТ -----
-    return "Входные данные определяются пользователем самостоятельно."
+    return "data = Входные данные определяются пользователем."
 
 # ======================================================
-# ОСНОВНАЯ ФУНКЦИЯ
+# ОСНОВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ЗАДАНИЯ
 # ======================================================
 
 def generate_task() -> Dict[str, str]:
@@ -91,9 +102,16 @@ def generate_task() -> Dict[str, str]:
     X_vec = vectorizer.transform([raw_text])
     task_type = classifier.predict(X_vec)[0]
 
-    input_data = generate_input_data(task_type)
+    domain = TASK_DOMAIN.get(task_type, "numbers")
 
-    final_text = f"{raw_text} Используйте входные данные ниже."
+    input_data = generate_input_data(task_type, domain)
+
+    if domain == "numbers":
+        final_text = f"Дан список чисел. {raw_text} Используйте входные данные ниже."
+    elif domain == "strings":
+        final_text = f"Дан список строк. {raw_text} Используйте входные данные ниже."
+    else:
+        final_text = f"Дана строка текста. {raw_text} Используйте входные данные ниже."
 
     return {
         "task_text": final_text,
@@ -102,12 +120,13 @@ def generate_task() -> Dict[str, str]:
     }
 
 # ======================================================
-# ЛОКАЛЬНЫЙ ЗАПУСК
+# ЛОКАЛЬНЫЙ ЗАПУСК ДЛЯ ПРОВЕРКИ
 # ======================================================
 
 if __name__ == "__main__":
     task = generate_task()
     print("СГЕНЕРИРОВАННОЕ ЗАДАНИЕ:")
     print(task["task_text"])
-    print("ВХОДНЫЕ ДАННЫЕ:", task["input_data"])
+    print("ИСХОДНЫЕ ДАННЫЕ:")
+    print(task["input_data"])
     print("ТИП:", task["task_type"])
