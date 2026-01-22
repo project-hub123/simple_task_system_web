@@ -75,6 +75,10 @@ def generate_input_data(task_type: str) -> str:
         random.shuffle(data)
         return f"Список строк: {data}"
 
+    if task_type == "list_square":
+        data = [random.randint(1, 15) for _ in range(6)]
+        return f"Список чисел: {data}"
+
     return ""
 
 # ======================================================
