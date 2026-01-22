@@ -1,93 +1,71 @@
 import os
+import torch
+import torch.nn as nn
+import pandas as pd
 from typing import Dict
 
-import numpy as np
-import pandas as pd
-import tensorflow as tf
-
 from ml.model_service import load_model
-
-# ======================================================
-# ПУТИ
-# ======================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-TASKS_FILE = os.path.join(DATA_DIR, "tasks_dataset.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "text_generator.pt")
+DATA_PATH = os.path.join(PROJECT_ROOT, "data", "tasks_dataset.csv")
 
-TEXT_MODEL_PATH = os.path.join(BASE_DIR, "models", "text_generator.h5")
+checkpoint = torch.load(MODEL_PATH)
 
-# ======================================================
-# ЗАГРУЗКА ДАННЫХ ДЛЯ СЛОВАРЯ
-# ======================================================
+char_to_idx = checkpoint["char_to_idx"]
+idx_to_char = checkpoint["idx_to_char"]
 
-df = pd.read_csv(TASKS_FILE)
-texts = "\n".join(df["task_text"].astype(str).str.lower())
+class TextGenerator(nn.Module):
+    def __init__(self, vocab_size):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, 64)
+        self.lstm = nn.LSTM(64, 128, batch_first=True)
+        self.fc = nn.Linear(128, vocab_size)
 
-chars = sorted(list(set(texts)))
-char_to_idx = {c: i for i, c in enumerate(chars)}
-idx_to_char = {i: c for c, i in char_to_idx.items()}
+    def forward(self, x):
+        x = self.embed(x)
+        out, _ = self.lstm(x)
+        out = self.fc(out[:, -1, :])
+        return out
 
-# ======================================================
-# ЗАГРУЗКА МОДЕЛЕЙ
-# ======================================================
+model = TextGenerator(len(char_to_idx))
+model.load_state_dict(checkpoint["model"])
+model.eval()
 
-if not os.path.exists(TEXT_MODEL_PATH):
-    raise RuntimeError("Модель генерации текста не найдена")
+clf = load_model()
+vectorizer = clf["vectorizer"]
+classifier = clf["model"]
 
-text_model = tf.keras.models.load_model(TEXT_MODEL_PATH)
-
-clf_data = load_model()
-vectorizer = clf_data["vectorizer"]
-classifier = clf_data["model"]
-
-# ======================================================
-# ГЕНЕРАЦИЯ ТЕКСТА
-# ======================================================
-
-def _generate_text(seed: str = "дан", length: int = 200) -> str:
+def generate_text(seed="дан", length=200):
     result = seed.lower()
 
     for _ in range(length):
         seq = result[-40:]
         seq_idx = [char_to_idx.get(c, 0) for c in seq]
-        seq_idx = np.expand_dims(seq_idx, axis=0)
+        seq_tensor = torch.tensor([seq_idx], dtype=torch.long)
 
-        preds = text_model.predict(seq_idx, verbose=0)[0]
-        next_char = idx_to_char[int(np.argmax(preds))]
+        with torch.no_grad():
+            preds = model(seq_tensor)
+            next_char = idx_to_char[int(torch.argmax(preds))]
+
         result += next_char
 
     return result.strip()
 
-# ======================================================
-# ОСНОВНАЯ ГЕНЕРАЦИЯ ЗАДАНИЯ
-# ======================================================
-
 def generate_task() -> Dict[str, str]:
-    """
-    Генерирует новое учебное задание.
-    Текст создаётся LSTM, тип определяется MLPClassifier.
-    """
-
-    task_text = _generate_text()
-
-    X_vec = vectorizer.transform([task_text])
+    text = generate_text()
+    X_vec = vectorizer.transform([text])
     task_type = classifier.predict(X_vec)[0]
 
     return {
-        "task_text": task_text,
+        "task_text": text,
         "task_type": task_type,
         "input_data": ""
     }
 
-# ======================================================
-# ЛОКАЛЬНЫЙ ТЕСТ
-# ======================================================
-
 if __name__ == "__main__":
     task = generate_task()
-    print("СГЕНЕРИРОВАННОЕ ЗАДАНИЕ:")
     print(task["task_text"])
-    print("ТИП ЗАДАНИЯ (нейросеть):", task["task_type"])
+    print("ТИП:", task["task_type"])
