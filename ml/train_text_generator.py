@@ -4,10 +4,12 @@ import numpy as np
 import tensorflow as tf
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "text_generator.h5")
-DATA_PATH = os.path.join(os.path.dirname(BASE_DIR), "data", "tasks_dataset.csv")
+PROJECT_DIR = os.path.dirname(BASE_DIR)
 
-model = tf.keras.models.load_model(MODEL_PATH)
+DATA_PATH = os.path.join(PROJECT_DIR, "data", "tasks_dataset.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "text_generator.h5")
+
+os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
 
 df = pd.read_csv(DATA_PATH)
 texts = "\n".join(df["task_text"].astype(str).str.lower())
@@ -16,21 +18,24 @@ chars = sorted(list(set(texts)))
 char_to_idx = {c: i for i, c in enumerate(chars)}
 idx_to_char = {i: c for c, i in char_to_idx.items()}
 
-def generate_task(seed: str = "дан", length: int = 200) -> str:
-    seed = seed.lower()
-    result = seed
+SEQ_LEN = 40
+X, y = [], []
 
-    for _ in range(length):
-        seq = result[-40:]
-        seq_idx = [char_to_idx.get(c, 0) for c in seq]
-        seq_idx = np.expand_dims(seq_idx, axis=0)
+for i in range(len(texts) - SEQ_LEN):
+    X.append([char_to_idx[c] for c in texts[i:i + SEQ_LEN]])
+    y.append(char_to_idx[texts[i + SEQ_LEN]])
 
-        preds = model.predict(seq_idx, verbose=0)[0]
-        next_char = idx_to_char[np.argmax(preds)]
-        result += next_char
+X = np.array(X)
+y = tf.keras.utils.to_categorical(y, num_classes=len(chars))
 
-    return result.strip()
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(len(chars), 64),
+    tf.keras.layers.LSTM(128),
+    tf.keras.layers.Dense(len(chars), activation="softmax")
+])
 
+model.compile(optimizer="adam", loss="categorical_crossentropy")
+model.fit(X, y, epochs=5, batch_size=128)
 
-if __name__ == "__main__":
-    print(generate_task())
+model.save(MODEL_PATH)
+print("OK: модель генерации текста сохранена:", MODEL_PATH)
