@@ -11,15 +11,19 @@ import pandas as pd
 
 from ml.database import get_students_statistics
 
+# ======================================================
+# ПУТИ
+# ======================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATASET_PATH = os.path.join(DATA_DIR, "train_data.csv")
 
-REQUIRED_COLUMNS = {"task_text", "task_type"}
-
 os.makedirs(DATA_DIR, exist_ok=True)
 
+# ======================================================
+# ПАНЕЛЬ ПРЕПОДАВАТЕЛЯ
+# ======================================================
 
 class TeacherPanel(QWidget):
     def __init__(self):
@@ -30,11 +34,11 @@ class TeacherPanel(QWidget):
 
         layout = QVBoxLayout()
 
-        title = QLabel("Статистика студентов и управление данными")
+        title = QLabel("Статистика студентов и управление обучением")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
 
-        # ---------- Таблица ----------
+        # ---------- Таблица статистики ----------
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels([
@@ -52,7 +56,7 @@ class TeacherPanel(QWidget):
         self.btn_export.clicked.connect(self.export_to_excel)
         buttons_layout.addWidget(self.btn_export)
 
-        self.btn_upload_dataset = QPushButton("Загрузить обучающий датасет")
+        self.btn_upload_dataset = QPushButton("Загрузить датасет для обучения модели")
         self.btn_upload_dataset.clicked.connect(self.upload_dataset)
         buttons_layout.addWidget(self.btn_upload_dataset)
 
@@ -70,7 +74,7 @@ class TeacherPanel(QWidget):
         self.update_dataset_status()
 
     # -------------------------------------------------
-    # Статистика студентов
+    # ЗАГРУЗКА СТАТИСТИКИ
     # -------------------------------------------------
 
     def load_data(self):
@@ -84,7 +88,7 @@ class TeacherPanel(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(str(s["last_attempt"])))
 
     # -------------------------------------------------
-    # Экспорт
+    # ЭКСПОРТ СТАТИСТИКИ
     # -------------------------------------------------
 
     def export_to_excel(self):
@@ -119,21 +123,23 @@ class TeacherPanel(QWidget):
             QMessageBox.critical(self, "Ошибка", str(e))
 
     # -------------------------------------------------
-    # Датасет
+    # ДАТАСЕТ ДЛЯ ОБУЧЕНИЯ (ОПЦИОНАЛЬНО)
     # -------------------------------------------------
 
     def update_dataset_status(self):
         if os.path.exists(DATASET_PATH):
             self.dataset_label.setText(
-                f"Используется обучающий датасет: {os.path.basename(DATASET_PATH)}"
+                f"Загружен датасет для обучения модели: {os.path.basename(DATASET_PATH)}"
             )
         else:
-            self.dataset_label.setText("Обучающий датасет не загружен")
+            self.dataset_label.setText(
+                "Датасет для обучения модели не загружен (не обязателен для работы системы)"
+            )
 
     def upload_dataset(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Выбор CSV-файла с обучающим датасетом",
+            "Выбор CSV-файла для обучения модели",
             "",
             "CSV файлы (*.csv)"
         )
@@ -142,21 +148,15 @@ class TeacherPanel(QWidget):
             return
 
         try:
-            df = pd.read_csv(file_path)
-            missing = REQUIRED_COLUMNS - set(df.columns)
-
-            if missing:
-                raise ValueError(
-                    "Некорректная структура датасета. "
-                    f"Отсутствуют колонки: {', '.join(missing)}"
-                )
+            # Проверяем, что это CSV, без жёсткой привязки к структуре
+            pd.read_csv(file_path)
 
             shutil.copy(file_path, DATASET_PATH)
 
             QMessageBox.information(
                 self,
                 "Успешно",
-                "Датасет успешно загружен и будет использован при следующем обучении модели."
+                "Датасет загружен и может быть использован при обучении модели."
             )
 
             self.update_dataset_status()
