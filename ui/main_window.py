@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from ml.task_generator import generate_task
-from ml.predict import predict
+from ml.checkers import check_solution
 from ml.database import save_result
 
 from ui.teacher_panel import TeacherPanel
@@ -37,7 +37,6 @@ class MainWindow(QMainWindow):
     def _create_menu(self):
         menu = self.menuBar()
 
-        # ---------- Файл ----------
         file_menu = menu.addMenu("Файл")
 
         logout_action = QAction("Сменить пользователя", self)
@@ -49,7 +48,6 @@ class MainWindow(QMainWindow):
         file_menu.addAction(logout_action)
         file_menu.addAction(exit_action)
 
-        # ---------- Настройки ----------
         settings_menu = menu.addMenu("Настройки")
 
         settings_action = QAction("Параметры системы", self)
@@ -57,7 +55,6 @@ class MainWindow(QMainWindow):
 
         settings_menu.addAction(settings_action)
 
-        # ---------- Справка ----------
         help_menu = menu.addMenu("Справка")
 
         about_action = QAction("О системе", self)
@@ -120,7 +117,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(task_tab, "Задания")
 
         # -----------------------------
-        # ВКЛАДКА ПРЕПОДАВАТЕЛЯ
+        # ПРЕПОДАВАТЕЛЬ
         # -----------------------------
 
         if self.user["role"] == "teacher":
@@ -130,7 +127,7 @@ class MainWindow(QMainWindow):
             )
 
         # -----------------------------
-        # ВКЛАДКА АДМИНИСТРАТОРА
+        # АДМИНИСТРАТОР
         # -----------------------------
 
         if self.user["role"] == "admin":
@@ -148,34 +145,18 @@ class MainWindow(QMainWindow):
     # =================================================
 
     def generate_task(self):
-        try:
-            self.task = generate_task()
-        except Exception:
-            QMessageBox.warning(
-                self,
-                "ML недоступна",
-                "Модель классификации не найдена.\n"
-                "Используется резервная генерация заданий."
-            )
-            self.task = generate_task(use_ml=False)
-
+        self.task = generate_task()
         self._show_task()
         self.text_solution.clear()
 
     def _show_task(self):
         task_text = self.task["task_text"]
-        task_type = self.task["task_type"]
-        input_data = self.task.get("input_data", "")
-
-        if task_type.startswith("text"):
-            data_block = f'text = "{input_data}"'
-        else:
-            data_block = f"data = {input_data}"
+        input_data = self.task["input_data"]
 
         self.label_task.setText(
             f"{task_text}\n\n"
             f"Исходные данные:\n"
-            f"{data_block}"
+            f"{input_data}"
         )
 
     def check_solution(self):
@@ -197,8 +178,12 @@ class MainWindow(QMainWindow):
             )
             return
 
-        result_text = predict(self.task, user_code)
-        is_correct = result_text.startswith("✅")
+        is_correct, feedback = check_solution(
+            task_type=self.task["task_type"],
+            user_code=user_code,
+            input_data=self.task["input_data"],
+            expected_result=self.task["expected_result"]
+        )
 
         save_result(
             username=self.user["username"],
@@ -206,13 +191,13 @@ class MainWindow(QMainWindow):
             task_type=self.task["task_type"],
             user_code=user_code,
             is_correct=is_correct,
-            feedback=result_text
+            feedback=feedback
         )
 
         QMessageBox.information(
             self,
             "Результат проверки",
-            result_text
+            feedback
         )
 
     # =================================================
@@ -242,10 +227,6 @@ class MainWindow(QMainWindow):
             "О системе",
             "Интеллектуальный сервис автоматической генерации и проверки "
             "учебных заданий по языку программирования Python.\n\n"
-            "Система предназначена для использования в учебном процессе "
-            "и обеспечивает автоматическую генерацию заданий, проверку "
-            "корректности решений, хранение и анализ результатов, а также "
-            "поддержку ролей пользователей.\n\n"
             "Автор: Федотова Анастасия Алексеевна\n"
             "Выпускная квалификационная работа\n"
             "ЧОУ ВО «Московский университет имени С.Ю. Витте»"

@@ -1,5 +1,6 @@
 import random
 from typing import Dict, Any
+from ml.predict import predict_task_type  # ← подключение предсказания
 
 # ======================================================
 # СПРАВОЧНИК ТИПОВ ЗАДАНИЙ
@@ -34,13 +35,28 @@ TASKS = {
 }
 
 # ======================================================
-# ГЕНЕРАЦИЯ ЗАДАНИЯ
+# ГЕНЕРАЦИЯ ЗАДАНИЯ С ИСПОЛЬЗОВАНИЕМ МОДЕЛИ
 # ======================================================
 
 def generate_task() -> Dict[str, Any]:
-    task_type = random.choice(list(TASKS.keys()))
-    task = TASKS[task_type]
+    # Предположим, случайный текст (имитируем входную строку)
+    sample_texts = {
+        "list_sum": "Посчитайте сумму всех элементов в списке.",
+        "list_even": "Определите количество чётных чисел в данном списке.",
+        "list_sort": "Отсортируйте список по возрастанию.",
+        "text_chars": "Подсчитайте количество символов в строке, исключая пробелы.",
+        "text_words": "Подсчитайте количество слов в предложении."
+    }
 
+    task_text = random.choice(list(sample_texts.values()))
+
+    # Предсказание типа задания
+    task_type = predict_task_type(task_text)
+
+    if task_type not in TASKS:
+        raise ValueError(f"Неизвестный тип задания: {task_type}")
+
+    task = TASKS[task_type]
     input_data = task["input"]()
     expected_result = task["solve"](input_data)
 
