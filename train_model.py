@@ -2,6 +2,7 @@
 # Автор: Федотова Анастасия Алексеевна
 
 import os
+import sys
 import json
 import pandas as pd
 
@@ -17,7 +18,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODEL_DIR = os.path.join(BASE_DIR, "ml", "models")
 
-DATA_PATH = os.path.join(DATA_DIR, "train_data.csv")
+DEFAULT_DATA_PATH = os.path.join(DATA_DIR, "train_data.csv")
 METRICS_PATH = os.path.join(MODEL_DIR, "metrics.json")
 
 REQUIRED_COLUMNS = {"task_text", "task_type"}
@@ -34,20 +35,23 @@ def validate_dataset(df: pd.DataFrame):
         )
 
 
-def load_dataset() -> pd.DataFrame:
-    if not os.path.exists(DATA_PATH):
+def load_dataset(path: str) -> pd.DataFrame:
+    if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Не найден обучающий датасет: {DATA_PATH}"
+            f"Не найден обучающий датасет: {path}"
         )
 
-    df = pd.read_csv(DATA_PATH)
+    df = pd.read_csv(path)
     validate_dataset(df)
     return df
 
 
 def main():
-    print("Загрузка обучающего датасета...")
-    df = load_dataset()
+    # Получение пути до датасета из аргумента или по умолчанию
+    data_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DATA_PATH
+
+    print(f"Загрузка обучающего датасета: {data_path}")
+    df = load_dataset(data_path)
 
     X = df["task_text"]
     y = df["task_type"]
