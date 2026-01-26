@@ -110,3 +110,8 @@ def predict(task: dict, solution_text: str) -> str:
         f"{prefix} {message}\n"
         f"{type_info}"
     )
+# -------------------------------------------------
+# Экспорт функции предсказания типа
+# -------------------------------------------------
+
+predict_task_type = _predict_task_type
