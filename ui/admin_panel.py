@@ -10,7 +10,6 @@ import os
 import shutil
 import subprocess
 import pandas as pd
-from datetime import datetime
 
 from ml.database import (
     get_all_users,
@@ -27,7 +26,6 @@ PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 DATASET_PATH = os.path.join(DATA_DIR, "train_data.csv")
 TRAIN_SCRIPT = os.path.join(PROJECT_ROOT, "train_model.py")
-METRICS_PATH = os.path.join(PROJECT_ROOT, "ml", "models", "metrics.json")
 
 REQUIRED_COLUMNS = {"task_text", "task_type"}
 
@@ -49,9 +47,12 @@ class AdminPanel(QWidget):
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
         main_layout.addWidget(title)
 
+        # ---------- Пользователи ----------
         self.users_table = QTableWidget()
         self.users_table.setColumnCount(3)
-        self.users_table.setHorizontalHeaderLabels(["Пользователь", "Роль", "Статус"])
+        self.users_table.setHorizontalHeaderLabels(
+            ["Пользователь", "Роль", "Статус"]
+        )
         self.users_table.horizontalHeader().setStretchLastSection(True)
         main_layout.addWidget(self.users_table)
 
@@ -88,29 +89,33 @@ class AdminPanel(QWidget):
 
         main_layout.addLayout(manage_layout)
 
-        ml_layout = QHBoxLayout()
+        # ---------- Обучающие данные ----------
+        dataset_layout = QHBoxLayout()
 
-        self.btn_upload_dataset = QPushButton("Загрузить датасет")
+        self.btn_upload_dataset = QPushButton("Загрузить обучающий датасет")
         self.btn_upload_dataset.clicked.connect(self.upload_dataset)
-        ml_layout.addWidget(self.btn_upload_dataset)
+        dataset_layout.addWidget(self.btn_upload_dataset)
 
-        self.btn_train_model = QPushButton("Переобучить модель")
+        self.btn_train_model = QPushButton("Запустить обучение модели")
         self.btn_train_model.clicked.connect(self.train_model)
-        ml_layout.addWidget(self.btn_train_model)
+        dataset_layout.addWidget(self.btn_train_model)
 
-        main_layout.addLayout(ml_layout)
+        main_layout.addLayout(dataset_layout)
 
-        self.model_metrics_label = QLabel("Метрики модели: не загружены")
-        self.model_metrics_label.setStyleSheet("font-style: italic; padding-top: 5px;")
-        main_layout.addWidget(self.model_metrics_label)
+        self.dataset_label = QLabel("Обучающий датасет не загружен")
+        self.dataset_label.setStyleSheet("font-style: italic;")
+        main_layout.addWidget(self.dataset_label)
 
+        # ---------- Журнал действий ----------
         log_title = QLabel("Журнал действий администратора")
         log_title.setStyleSheet("font-weight: bold;")
         main_layout.addWidget(log_title)
 
         self.log_table = QTableWidget()
         self.log_table.setColumnCount(3)
-        self.log_table.setHorizontalHeaderLabels(["Дата", "Администратор", "Действие"])
+        self.log_table.setHorizontalHeaderLabels(
+            ["Дата", "Администратор", "Действие"]
+        )
         self.log_table.horizontalHeader().setStretchLastSection(True)
         main_layout.addWidget(self.log_table)
 
@@ -118,7 +123,11 @@ class AdminPanel(QWidget):
 
         self.load_users()
         self.load_logs()
-        self.load_model_metrics()
+        self.update_dataset_status()
+
+    # =================================================
+    # Пользователи
+    # =================================================
 
     def load_users(self):
         users = get_all_users()
@@ -140,7 +149,10 @@ class AdminPanel(QWidget):
 
         try:
             add_user(username, password, role)
-            log_admin_action(self.admin_username, f"Добавлен пользователь {username}")
+            log_admin_action(
+                self.admin_username,
+                f"Добавлен пользователь {username}"
+            )
             self.username_input.clear()
             self.password_input.clear()
             self.load_users()
@@ -160,17 +172,22 @@ class AdminPanel(QWidget):
             QMessageBox.warning(self, "Ошибка", "Выберите пользователя")
             return
 
-        new_password, ok = QInputDialog.getText(self, "Сброс пароля", f"Введите новый пароль для пользователя '{username}':", QLineEdit.Password)
+        new_password, ok = QInputDialog.getText(
+            self,
+            "Сброс пароля",
+            f"Введите новый пароль для пользователя «{username}»:",
+            QLineEdit.Password
+        )
         if not ok or not new_password.strip():
             return
 
-        try:
-            update_user_password(username, new_password)
-            log_admin_action(self.admin_username, f"Сброшен пароль пользователя {username}")
-            self.load_logs()
-            QMessageBox.information(self, "Готово", "Пароль обновлён")
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
+        update_user_password(username, new_password)
+        log_admin_action(
+            self.admin_username,
+            f"Сброшен пароль пользователя {username}"
+        )
+        self.load_logs()
+        QMessageBox.information(self, "Готово", "Пароль обновлён")
 
     def toggle_active(self):
         username = self.get_selected_user()
@@ -179,35 +196,72 @@ class AdminPanel(QWidget):
             return
 
         set_user_active(username)
-        log_admin_action(self.admin_username, f"Изменён статус пользователя {username}")
+        log_admin_action(
+            self.admin_username,
+            f"Изменён статус пользователя {username}"
+        )
         self.load_users()
         self.load_logs()
 
+    # =================================================
+    # Датасет и обучение
+    # =================================================
+
     def upload_dataset(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Выбор CSV", "", "CSV (*.csv)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выбор CSV-файла",
+            "",
+            "CSV файлы (*.csv)"
+        )
         if not file_path:
             return
 
         df = pd.read_csv(file_path)
         if not REQUIRED_COLUMNS.issubset(df.columns):
-            QMessageBox.critical(self, "Ошибка", "Некорректная структура датасета")
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                "Некорректная структура датасета"
+            )
             return
 
         shutil.copy(file_path, DATASET_PATH)
-        log_admin_action(self.admin_username, "Загружен обучающий датасет")
+        log_admin_action(
+            self.admin_username,
+            "Загружен обучающий датасет"
+        )
+        self.update_dataset_status()
         self.load_logs()
-        self.load_model_metrics()
         QMessageBox.information(self, "Готово", "Датасет загружен")
+
+    def update_dataset_status(self):
+        if os.path.exists(DATASET_PATH):
+            self.dataset_label.setText(
+                f"Используется датасет: {os.path.basename(DATASET_PATH)}"
+            )
+        else:
+            self.dataset_label.setText("Обучающий датасет не загружен")
 
     def train_model(self):
         try:
             subprocess.run(["python", TRAIN_SCRIPT], check=True)
-            log_admin_action(self.admin_username, "Выполнено переобучение модели")
+            log_admin_action(
+                self.admin_username,
+                "Запущено обучение модели"
+            )
             self.load_logs()
-            self.load_model_metrics()
-            QMessageBox.information(self, "Готово", "Модель успешно переобучена")
+            QMessageBox.information(
+                self,
+                "Готово",
+                "Процесс обучения модели завершён"
+            )
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+    # =================================================
+    # Логи
+    # =================================================
 
     def load_logs(self):
         logs = get_admin_logs()
@@ -216,18 +270,3 @@ class AdminPanel(QWidget):
             self.log_table.setItem(row, 0, QTableWidgetItem(log["timestamp"]))
             self.log_table.setItem(row, 1, QTableWidgetItem(log["admin"]))
             self.log_table.setItem(row, 2, QTableWidgetItem(log["action"]))
-
-    def load_model_metrics(self):
-        if not os.path.exists(METRICS_PATH):
-            self.model_metrics_label.setText("Метрики модели: отсутствуют")
-            return
-        try:
-            with open(METRICS_PATH, "r", encoding="utf-8") as f:
-                import json
-                metrics = json.load(f)
-                acc = metrics.get("MLPClassifier", {}).get("accuracy", "—")
-                self.model_metrics_label.setText(
-                    f"Метрики модели: Точность MLPClassifier — {acc:.4f}" if isinstance(acc, float) else f"Метрики модели: {acc}"
-                )
-        except Exception:
-            self.model_metrics_label.setText("Метрики модели: ошибка чтения")
