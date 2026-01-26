@@ -10,7 +10,7 @@ class SettingsWindow(QWidget):
         super().__init__()
 
         self.setWindowTitle("Настройки приложения")
-        self.setFixedSize(420, 380)
+        self.setFixedSize(420, 360)
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
@@ -28,15 +28,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(title)
 
         # =====================================
-        # 1. Использовать ML
-        # =====================================
-
-        self.chk_use_ml = QCheckBox("Использовать ML-классификацию заданий")
-        self.chk_use_ml.setChecked(True)
-        layout.addWidget(self.chk_use_ml)
-
-        # =====================================
-        # 2. Количество попыток
+        # 1. Количество попыток
         # =====================================
 
         attempts_layout = QHBoxLayout()
@@ -50,7 +42,7 @@ class SettingsWindow(QWidget):
         layout.addLayout(attempts_layout)
 
         # =====================================
-        # 3. Уровень сложности
+        # 2. Уровень сложности
         # =====================================
 
         difficulty_layout = QHBoxLayout()
@@ -67,7 +59,7 @@ class SettingsWindow(QWidget):
         layout.addLayout(difficulty_layout)
 
         # =====================================
-        # 4. Логирование
+        # 3. Логирование
         # =====================================
 
         self.chk_logging = QCheckBox("Вести журнал действий системы")
@@ -75,7 +67,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.chk_logging)
 
         # =====================================
-        # 5. Автосохранение результатов
+        # 4. Автосохранение результатов
         # =====================================
 
         self.chk_autosave = QCheckBox("Автоматически сохранять результаты")
@@ -103,12 +95,11 @@ class SettingsWindow(QWidget):
         self.setLayout(layout)
 
     # -------------------------------------------------
-    # СОХРАНЕНИЕ (ПОКА ЛОГИЧЕСКОЕ)
+    # СОХРАНЕНИЕ НАСТРОЕК (ЛОГИЧЕСКОЕ)
     # -------------------------------------------------
 
     def save_settings(self):
         settings = {
-            "use_ml": self.chk_use_ml.isChecked(),
             "max_attempts": self.spin_attempts.value(),
             "difficulty": self.combo_difficulty.currentText(),
             "logging": self.chk_logging.isChecked(),
@@ -118,6 +109,5 @@ class SettingsWindow(QWidget):
         QMessageBox.information(
             self,
             "Настройки сохранены",
-            "Параметры системы успешно сохранены.\n\n"
-            f"{settings}"
+            "Параметры системы успешно сохранены."
         )
